@@ -42,7 +42,7 @@ async function listMessages(req, res, next) {
     const messages = await Message.find({ workspaceId: req.workspace._id, channelId })
       .sort({ createdAt: -1 })
       .limit(120)
-      .populate("userId", "name email");
+      .populate("userId", "name email avatar");
 
     res.json({ success: true, messages: messages.reverse() });
   } catch (error) {
@@ -66,7 +66,7 @@ async function sendMessage(req, res, next) {
       content: String(content).trim(),
     });
 
-    const populated = await Message.findById(message._id).populate("userId", "name email");
+    const populated = await Message.findById(message._id).populate("userId", "name email avatar");
     const io = getIO();
 
     io?.to(channelRoom(req.workspace._id, channelId)).emit("message:sent", { message: populated });
@@ -92,7 +92,7 @@ async function handleMentions(req, message) {
   try {
     const members = await WorkspaceMember.find({ workspaceId: req.workspace._id }).populate(
       "userId",
-      "name email"
+      "name email avatar"
     );
 
     const text = String(message.content);

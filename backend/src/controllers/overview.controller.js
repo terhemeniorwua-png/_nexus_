@@ -23,7 +23,7 @@ async function getOverview(req, res, next) {
           workspaces: [],
           dueSoonTasks: [],
           overdueTasks: [],
-          inProgress: [],
+          inProgressTasks: [],
           recentActivity: [],
         },
       });
@@ -132,4 +132,56 @@ async function getOverview(req, res, next) {
   }
 }
 
-module.exports = { getOverview };
+async function getMyTasks(req, res, next) {
+  try {
+    const me = req.user;
+
+    const memberships = await WorkspaceMember.find({ userId: me._id });
+    const owned = await Workspace.find({ ownerId: me._id }).select("_id");
+
+    const ids = [
+      ...new Set([...memberships.map((m) => String(m.workspaceId)), ...owned.map((w) => String(w._id))]),
+    ];
+
+    if (ids.length === 0) {
+      return res.json({ success: true, tasks: [] });
+    }
+
+    const workspaces = await Workspace.find({ _id: { $in: ids } });
+    const projects = await Project.find({ workspaceId: { $in: ids } });
+
+    const workspaceById = {};
+    const projectById = {};
+    const workspaceByProject = {};
+    workspaces.forEach((workspace) => {
+      workspaceById[String(workspace._id)] = workspace;
+    });
+    projects.forEach((project) => {
+      projectById[String(project._id)] = project;
+      workspaceByProject[String(project._id)] = String(project.workspaceId);
+    });
+
+    const tasks = await Task.find({
+      projectId: { $in: projects.map((p) => p._id) },
+      assignedTo: me._id,
+    })
+      .populate("assignedTo", "name email avatar")
+      .sort({ dueDate: 1, updatedAt: -1 })
+      .limit(300);
+
+    const decorated = tasks.map((task) => ({
+      ...task.toJSON(),
+      projectId: String(task.projectId),
+      projectName: projectById[String(task.projectId)]?.name || "Unknown",
+      workspaceId: workspaceByProject[String(task.projectId)] || null,
+      workspaceName: workspaceById[workspaceByProject[String(task.projectId)]]?.name || "Unknown",
+      columnName: task.status,
+    }));
+
+    res.json({ success: true, tasks: decorated });
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = { getOverview, getMyTasks };

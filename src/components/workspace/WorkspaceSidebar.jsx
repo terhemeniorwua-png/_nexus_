@@ -91,6 +91,7 @@ export default function WorkspaceSidebar({ workspaceId, workspaceName, role }) {
             <div key={member.id} className="flex items-center gap-2.5 rounded-lg px-1.5 py-1.5">
               <Avatar
                 name={member.user?.name}
+                avatar={member.user?.avatar}
                 size={24}
                 showPresence={ready}
                 online={isOnline(member.user?.id)}

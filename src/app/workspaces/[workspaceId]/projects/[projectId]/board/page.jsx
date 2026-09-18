@@ -14,6 +14,7 @@ export default function BoardPage() {
 
   const members = wsData?.members || [];
   const project = projectsData?.projects?.find((p) => p.id === projectId);
+  const role = wsData?.role || "";
 
   return (
     <div className="mx-auto w-full max-w-[1400px] px-5 py-7 md:px-8">
@@ -29,7 +30,7 @@ export default function BoardPage() {
         </p>
       </header>
 
-      <Board workspaceId={workspaceId} projectId={projectId} members={members} />
+      <Board workspaceId={workspaceId} projectId={projectId} members={members} role={role} />
     </div>
   );
 }

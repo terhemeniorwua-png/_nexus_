@@ -112,7 +112,7 @@ export default function NotificationsPage() {
                         </p>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <span className="flex items-center gap-1.5 text-[11.5px] text-zinc-500">
-                            <Avatar name={notification.actorId?.name} size={18} />
+                            <Avatar name={notification.actorId?.name} avatar={notification.actorId?.avatar} size={18} />
                             {notification.actorId?.name || "Someone"}
                           </span>
                           {notification.workspaceId?.name && (

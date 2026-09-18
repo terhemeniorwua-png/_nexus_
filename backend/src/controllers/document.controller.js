@@ -7,7 +7,7 @@ async function listDocuments(req, res, next) {
     const documents = await Document.find({ workspaceId: req.workspace._id })
       .select("-content")
       .populate("projectId", "name")
-      .populate("createdBy", "name email")
+      .populate("createdBy", "name email avatar")
       .sort({ updatedAt: -1 });
 
     res.json({ success: true, documents });
@@ -50,7 +50,7 @@ async function getDocument(req, res, next) {
       workspaceId: req.workspace._id,
     })
       .populate("projectId", "name")
-      .populate("createdBy", "name email");
+      .populate("createdBy", "name email avatar");
 
     if (!document) return next(new ApiError(404, "Document not found"));
 

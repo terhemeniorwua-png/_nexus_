@@ -4,7 +4,7 @@ const { ApiError } = require("../middleware/errorHandler");
 async function listNotifications(req, res, next) {
   try {
     const notifications = await Notification.find({ userId: req.user._id })
-      .populate("actorId", "name email")
+      .populate("actorId", "name email avatar")
       .populate("workspaceId", "name")
       .sort({ createdAt: -1 })
       .limit(100);

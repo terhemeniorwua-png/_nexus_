@@ -28,7 +28,7 @@ async function latestActivity(workspaceId, limit = 25) {
   return Activity.find({ workspaceId })
     .sort({ createdAt: -1 })
     .limit(limit)
-    .populate("userId", "name email");
+    .populate("userId", "name email avatar");
 }
 
 module.exports = { recordActivity, latestActivity };

@@ -25,6 +25,7 @@ export function colorFor(name) {
 export default function Avatar({
   name,
   userId,
+  avatar,
   online,
   size = 32,
   showPresence = false,
@@ -32,10 +33,11 @@ export default function Avatar({
 }) {
   const initials = initialsOf(name);
   const backgroundColor = colorFor(name || userId);
+  const src = avatar && String(avatar).startsWith("http") ? avatar : null;
 
   return (
     <span
-      className={`relative inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-white ${className}`}
+      className={`relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold text-white ${className}`}
       style={{
         width: size,
         height: size,
@@ -44,7 +46,12 @@ export default function Avatar({
       }}
       title={name}
     >
-      {initials}
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt={name || ""} className="h-full w-full object-cover" />
+      ) : (
+        initials
+      )}
       {showPresence && (
         <span
           className={`absolute bottom-0 right-0 block rounded-full border-2 border-[#09090b] ${

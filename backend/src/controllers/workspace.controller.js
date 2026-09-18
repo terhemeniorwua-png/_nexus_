@@ -12,7 +12,7 @@ function normalizeMember(member, user) {
     role: member.role,
     joinedAt: member.createdAt,
     user: user
-      ? { id: user.id, name: user.name, email: user.email }
+      ? { id: user.id, name: user.name, email: user.email, avatar: user.avatar || "" }
       : { id: String(member.userId) },
   };
 }
@@ -93,7 +93,7 @@ async function getWorkspace(req, res, next) {
   try {
     const [members, projectCount, memberCount] = await Promise.all([
       WorkspaceMember.find({ workspaceId: req.workspace._id })
-        .populate("userId", "name email")
+        .populate("userId", "name email avatar")
         .sort({ createdAt: 1 }),
       Project.countDocuments({ workspaceId: req.workspace._id }),
       WorkspaceMember.countDocuments({ workspaceId: req.workspace._id }),
@@ -155,7 +155,7 @@ async function deleteWorkspace(req, res, next) {
 async function listMembers(req, res, next) {
   try {
     const members = await WorkspaceMember.find({ workspaceId: req.workspace._id })
-      .populate("userId", "name email")
+      .populate("userId", "name email avatar")
       .sort({ createdAt: 1 });
 
     res.json({ success: true, members: members.map((m) => normalizeMember(m, m.userId)) });

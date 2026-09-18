@@ -9,6 +9,7 @@ import "../workspace.css";
 import { PlusIcon, GridIcon, UsersIcon, BoardIcon } from "@/components/workspace/icons";
 import EmptyState from "@/components/workspace/EmptyState";
 import WorkspaceForm from "@/components/workspace/WorkspaceForm";
+import GlobalNav from "@/components/workspace/GlobalNav";
 
 export default function WorkspacesPage() {
   const router = useRouter();
@@ -37,7 +38,10 @@ export default function WorkspacesPage() {
         <div className="ws-glow left-[-8%] top-[-12%] h-[360px] w-[360px] bg-blue-600/20" />
         <div className="ws-glow right-[-10%] top-[35%] h-[320px] w-[320px] bg-purple-600/15" />
 
-        <div className="relative z-10 mx-auto w-full max-w-5xl px-5 py-10 md:px-8">
+        <div className="relative z-10 min-h-dvh">
+          <GlobalNav />
+
+          <main className="mx-auto w-full max-w-5xl px-5 py-10 md:px-8">
           <header className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <h1 className="text-[26px] font-semibold tracking-tight text-white">Workspaces</h1>
@@ -122,6 +126,7 @@ export default function WorkspacesPage() {
             submitLabel="Create workspace"
             onSubmit={handleCreateWorkspace}
           />
+          </main>
         </div>
       </div>
     </ProtectedRoute>

@@ -121,6 +121,44 @@ function logout(req, res) {
   });
 }
 
+async function forgotPassword(req, res, next) {
+  const genericMessage =
+    "If an account exists for that email, password reset instructions have been sent.";
+  const RESET_LINK_TTL_MINUTES = 30;
+
+  try {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const looksValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+    // Never reveal whether an account exists.
+    if (!looksValid) {
+      return res.json({ success: true, message: genericMessage });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.json({ success: true, message: genericMessage });
+    }
+
+    const token = jwt.sign({ purpose: "password-reset", userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: `${RESET_LINK_TTL_MINUTES}m`,
+    });
+
+    // No mailer is configured in this build — surface the link in development
+    // and silently no-op in production.
+    if (process.env.NODE_ENV !== "production") {
+      console.log(
+        `[nexus] Password reset for ${email} (expires in ${RESET_LINK_TTL_MINUTES} min): ` +
+          `${process.env.CLIENT_URL || "http://localhost:3000"}/reset-password?token=${token}`
+      );
+    }
+
+    return res.json({ success: true, message: genericMessage });
+  } catch (err) {
+    return next(err);
+  }
+}
+
 async function me(req, res, next) {
   try {
     const user = await User.findById(req.user._id);
@@ -137,5 +175,6 @@ module.exports = {
   register,
   login,
   logout,
+  forgotPassword,
   me,
 };

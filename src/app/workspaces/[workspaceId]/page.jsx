@@ -239,6 +239,7 @@ export default function WorkspaceHomePage() {
                 >
                   <Avatar
                     name={member.user?.name}
+                    avatar={member.user?.avatar}
                     size={30}
                     showPresence={ready}
                     online={isOnline(member.user?.id)}

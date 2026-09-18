@@ -234,3 +234,21 @@ export function HashIcon(props) {
     </Svg>
   );
 }
+
+export function HomeIcon(props) {
+  return (
+    <Svg {...props}>
+      <path d="m3 11 9-8 9 8" {...stroke} />
+      <path d="M5.5 9.5V20a1 1 0 0 0 1 1H10v-6h4v6h3.5a1 1 0 0 0 1-1V9.5" {...stroke} />
+    </Svg>
+  );
+}
+
+export function ListTasksIcon(props) {
+  return (
+    <Svg {...props}>
+      <rect x="4" y="3" width="16" height="18" rx="2" {...stroke} />
+      <path d="M9 8h6M9 12h6M9 16h3.5" {...stroke} />
+    </Svg>
+  );
+}

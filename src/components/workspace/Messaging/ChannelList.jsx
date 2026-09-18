@@ -68,7 +68,7 @@ export default function ChannelList({
 
         {!collapsed &&
           dms.map((member) => {
-            const channelId = ["dm", String(member.user.id), String(currentUserId)].sort().join("_");
+            const channelId = `dm:${[String(member.user.id), String(currentUserId)].sort().join("_")}`;
             const active = String(activeChannelId) === channelId;
             const memberOnline = isOnline && isOnline(member.user.id);
             return (

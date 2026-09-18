@@ -13,6 +13,7 @@ import EmptyState from "@/components/workspace/EmptyState";
 import ActivityFeed from "@/components/workspace/ActivityFeed";
 import TaskItem from "@/components/workspace/TaskItem";
 import WorkspaceForm from "@/components/workspace/WorkspaceForm";
+import GlobalNav from "@/components/workspace/GlobalNav";
 
 function greeting() {
   const hour = new Date().getHours();
@@ -64,8 +65,11 @@ export default function DashboardPage() {
         <div className="ws-glow left-[-10%] top-[-15%] h-[380px] w-[380px] bg-blue-600/20" />
         <div className="ws-glow right-[-8%] top-[28%] h-[340px] w-[340px] bg-purple-600/15" />
 
-        <div className="relative z-10 mx-auto w-full max-w-6xl px-5 py-10 md:px-8">
-          <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="relative z-10 min-h-dvh">
+          <GlobalNav />
+
+          <main className="mx-auto w-full max-w-6xl px-5 py-10 md:px-8">
+            <header className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <p className="text-[13px] font-medium text-zinc-500">
                 {new Date().toLocaleDateString(undefined, {
@@ -247,6 +251,7 @@ export default function DashboardPage() {
             submitLabel="Create workspace"
             onSubmit={handleCreateWorkspace}
           />
+          </main>
         </div>
       </div>
     </ProtectedRoute>

@@ -50,7 +50,7 @@ export default function TaskItem({ task, workspaceId }) {
       )}
 
       {task?.assignedTo && (
-        <Avatar name={task.assignedTo.name} size={24} className="shrink-0" />
+        <Avatar name={task.assignedTo.name} avatar={task.assignedTo.avatar} size={24} className="shrink-0" />
       )}
       <ChevronLeftIcon size={14} className="-scale-x-100 shrink-0 text-zinc-600 transition-colors group-hover:text-zinc-300" />
     </Link>

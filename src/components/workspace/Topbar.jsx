@@ -7,6 +7,7 @@ import { NexusLogo } from "@/components/NexusLogo";
 import { useNotifications } from "@/hooks/useNotifications";
 import { BellIcon, ArrowLeftIcon, LogOutIcon, SparkIcon } from "./icons";
 import Avatar from "./Avatar";
+import { GlobalNavLinks } from "./GlobalNav";
 import { useRouter } from "next/navigation";
 
 export default function Topbar({ workspaceName, backHref = "/dashboard" }) {
@@ -44,6 +45,10 @@ export default function Topbar({ workspaceName, backHref = "/dashboard" }) {
             <span className="truncate text-sm font-medium text-zinc-300">{workspaceName}</span>
           </>
         )}
+      </div>
+
+      <div className="hidden lg:block">
+        <GlobalNavLinks />
       </div>
 
       <div className="flex items-center gap-2.5">

@@ -19,7 +19,8 @@ const META = {
 
 function ActivityRow({ activity, workspaceId }) {
   const ws = workspaceId || activity.workspaceId;
-  const meta = META[activity.action] || { icon: <DotsIcon size={14} />, color: "#8b8b91", text: () => <span>{activity.action.toLowerCase().replace(/_/g, " ")}</span> };
+  const action = activity.action || "";
+  const meta = META[action] || { icon: <DotsIcon size={14} />, color: "#8b8b91", text: () => <span>made an update</span> };
   const Icon = meta.icon;
 
   return (

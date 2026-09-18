@@ -33,7 +33,7 @@ const activitySchema = new mongoose.Schema(
     },
     targetType: {
       type: String,
-      enum: ["task", "project", "document", "member", "channel", "workspace"],
+      enum: ["task", "project", "document", "member", "channel", "workspace", "comment"],
       default: "task",
     },
     targetId: {

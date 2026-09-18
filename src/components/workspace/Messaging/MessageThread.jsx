@@ -42,7 +42,7 @@ export default function MessageThread({ messages = [], currentUserId, loading })
                 mine ? "flex-row-reverse" : ""
               }`}
             >
-              <Avatar name={message.userId?.name} size={30} />
+              <Avatar name={message.userId?.name} avatar={message.userId?.avatar} size={30} />
               <div className={`min-w-0 ${mine ? "text-right" : ""}`}>
                 <div className={`flex items-baseline gap-2 ${mine ? "flex-row-reverse" : ""}`}>
                   <span className="text-[13px] font-semibold text-zinc-100">

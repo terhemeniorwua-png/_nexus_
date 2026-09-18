@@ -142,7 +142,7 @@ async function createTask(req, res, next) {
       createdBy: req.user._id,
     });
 
-    const populated = await Task.findById(task._id).populate("assignedTo", "name email");
+    const populated = await Task.findById(task._id).populate("assignedTo", "name email avatar");
 
     await recordActivity({
       workspaceId: req.workspace._id,
@@ -201,7 +201,7 @@ async function updateTask(req, res, next) {
 
     await task.save();
 
-    const populated = await Task.findById(task._id).populate("assignedTo", "name email");
+    const populated = await Task.findById(task._id).populate("assignedTo", "name email avatar");
 
     await recordActivity({
       workspaceId: req.workspace._id,
@@ -267,7 +267,7 @@ async function handleMoveTask(req, res, next) {
 
     const task = await moveTask(req.params.taskId, columnId, typeof position === "number" ? position : undefined);
 
-    const populated = await Task.findById(task._id).populate("assignedTo", "name email");
+    const populated = await Task.findById(task._id).populate("assignedTo", "name email avatar");
 
     await recordActivity({
       workspaceId: req.workspace._id,
@@ -335,7 +335,7 @@ async function reorderTask(req, res, next) {
 
     const moved = await moveTask(taskId, targetColumn._id, typeof newPosition === "number" ? newPosition : undefined);
 
-    const populated = await Task.findById(moved._id).populate("assignedTo", "name email");
+    const populated = await Task.findById(moved._id).populate("assignedTo", "name email avatar");
 
     await recordActivity({
       workspaceId: workspace._id,

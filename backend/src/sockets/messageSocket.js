@@ -11,9 +11,10 @@ function initMessage(io, socket) {
     });
   });
 
-  socket.on("channel:leave", ({ channelId }) => {
+  socket.on("channel:leave", ({ workspaceId, channelId }) => {
     if (!channelId) return;
-    socket.leave(`workspace:${String(channelId)}`);
+    const room = `workspace:${workspaceId ? `${workspaceId}:` : ""}channel:${String(channelId)}`;
+    socket.leave(room);
   });
 }
 

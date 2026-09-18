@@ -22,6 +22,12 @@ const userSchema = new mongoose.Schema(
       required: [true, "Password is required"],
       select: false,
     },
+    avatar: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: [500, "Avatar URL cannot exceed 500 characters"],
+    },
   },
   {
     timestamps: true,

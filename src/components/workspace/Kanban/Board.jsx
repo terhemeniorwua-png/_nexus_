@@ -63,7 +63,7 @@ function moveAcross(columns, activeId, overId, isOverTask) {
   });
 }
 
-export default function Board({ workspaceId, projectId, members }) {
+export default function Board({ workspaceId, projectId, members, role = "" }) {
   const { data: boardData, loading, refetch } = useResource(
     `/workspaces/${workspaceId}/projects/${projectId}/board`
   );
@@ -75,6 +75,15 @@ export default function Board({ workspaceId, projectId, members }) {
 
   const { run } = useMutation();
   const columnsRef = useRef(columns);
+
+  // Keep the assignee list in sync when the members prop resolves asynchronously.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (Array.isArray(members) && members.length > 0) {
+      setMembersData(members);
+    }
+  }, [members]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     columnsRef.current = columns;
@@ -240,6 +249,7 @@ export default function Board({ workspaceId, projectId, members }) {
         workspaceId={workspaceId}
         projectId={projectId}
         members={membersData}
+        role={role}
         columns={columns.map((col) => ({ id: col.id, name: col.name }))}
         task={modal?.type === "edit" ? modal.task : null}
         defaultColumnId={modal?.columnId}

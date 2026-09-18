@@ -11,6 +11,7 @@ const {
   deleteTask,
   handleMoveTask,
 } = require("../controllers/board.controller");
+const { listComments, addComment, deleteComment } = require("../controllers/comment.controller");
 
 const router = express.Router({ mergeParams: true });
 
@@ -26,5 +27,9 @@ router.post("/tasks", requireRole("Admin", "Member"), createTask);
 router.patch("/tasks/:taskId", requireRole("Admin", "Member"), updateTask);
 router.delete("/tasks/:taskId", requireRole("Admin", "Member"), deleteTask);
 router.post("/tasks/:taskId/move", requireRole("Admin", "Member"), handleMoveTask);
+
+router.get("/tasks/:taskId/comments", requireRole("Admin", "Member", "Viewer"), listComments);
+router.post("/tasks/:taskId/comments", requireRole("Admin", "Member"), addComment);
+router.delete("/tasks/:taskId/comments/:commentId", requireRole("Admin", "Member"), deleteComment);
 
 module.exports = router;
