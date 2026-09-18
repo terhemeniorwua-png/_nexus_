@@ -1,0 +1,334 @@
+const Workspace = require("../models/workspace.model");
+const WorkspaceMember = require("../models/workspaceMember.model");
+const Project = require("../models/project.model");
+const Task = require("../models/task.model");
+const { ApiError } = require("../middleware/errorHandler");
+const { recordActivity } = require("../services/activity.service");
+const { createNotification } = require("../services/notification.service");
+
+function normalizeMember(member, user) {
+  return {
+    id: member.id,
+    role: member.role,
+    joinedAt: member.createdAt,
+    user: user
+      ? { id: user.id, name: user.name, email: user.email }
+      : { id: String(member.userId) },
+  };
+}
+
+async function listWorkspaces(req, res, next) {
+  try {
+    const memberships = await WorkspaceMember.find({ userId: req.user._id });
+
+    const workspaceIds = memberships.map((m) => m.workspaceId);
+    const owned = await Workspace.find({ ownerId: req.user._id }).select("_id");
+
+    const ids = [...new Set([...workspaceIds.map(String), ...owned.map((w) => String(w._id))])];
+
+    const workspaces = await Workspace.find({ _id: { $in: ids } }).sort({ updatedAt: -1 });
+
+    const roleByWorkspace = {};
+    memberships.forEach((m) => {
+      roleByWorkspace[String(m.workspaceId)] = m.role;
+    });
+    owned.forEach((w) => {
+      roleByWorkspace[String(w._id)] = "Admin";
+    });
+
+    const data = await Promise.all(
+      workspaces.map(async (workspace) => {
+        const [memberCount, projectCount, taskCount] = await Promise.all([
+          WorkspaceMember.countDocuments({ workspaceId: workspace._id }),
+          Project.countDocuments({ workspaceId: workspace._id }),
+          Task.countDocuments({ projectId: { $in: await Project.find({ workspaceId: workspace._id }).distinct("_id") } }),
+        ]);
+
+        return {
+          ...workspace.toJSON(),
+          role: roleByWorkspace[String(workspace._id)] || "Member",
+          stats: { memberCount, projectCount, taskCount },
+        };
+      })
+    );
+
+    res.json({ success: true, workspaces: data });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function createWorkspace(req, res, next) {
+  try {
+    const { name, description } = req.body;
+
+    if (!name || !String(name).trim()) {
+      return next(new ApiError(400, "Workspace name is required"));
+    }
+
+    const workspace = await Workspace.create({
+      name: String(name).trim(),
+      description: String(description || "").trim(),
+      ownerId: req.user._id,
+    });
+
+    await WorkspaceMember.create({
+      workspaceId: workspace._id,
+      userId: req.user._id,
+      role: "Admin",
+    });
+
+    res.status(201).json({
+      success: true,
+      workspace: workspace.toJSON(),
+      role: "Admin",
+      members: [normalizeMember({ id: req.user._id, role: "Admin", createdAt: new Date(), userId: req.user._id }, req.user)],
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function getWorkspace(req, res, next) {
+  try {
+    const [members, projectCount, memberCount] = await Promise.all([
+      WorkspaceMember.find({ workspaceId: req.workspace._id })
+        .populate("userId", "name email")
+        .sort({ createdAt: 1 }),
+      Project.countDocuments({ workspaceId: req.workspace._id }),
+      WorkspaceMember.countDocuments({ workspaceId: req.workspace._id }),
+    ]);
+
+    const isOwner = String(req.workspace.ownerId) === String(req.user._id);
+    const memberRows = members.map((m) => normalizeMember(m, m.userId));
+    if (isOwner && !memberRows.some((r) => String(r.user.id) === String(req.user._id))) {
+      memberRows.unshift(normalizeMember({ id: req.user._id, role: "Admin", createdAt: new Date(), userId: req.user._id }, req.user));
+    }
+
+    res.json({
+      success: true,
+      workspace: req.workspace.toJSON(),
+      role: req.memberRole,
+      isOwner,
+      stats: { memberCount, projectCount },
+      members: memberRows,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function updateWorkspace(req, res, next) {
+  try {
+    const { name, description } = req.body;
+
+    if (name !== undefined && !String(name).trim()) {
+      return next(new ApiError(400, "Workspace name cannot be empty"));
+    }
+
+    if (name !== undefined) req.workspace.name = String(name).trim();
+    if (description !== undefined) req.workspace.description = String(description).trim();
+
+    await req.workspace.save();
+
+    res.json({ success: true, workspace: req.workspace.toJSON() });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function deleteWorkspace(req, res, next) {
+  try {
+    await Workspace.deleteOne({ _id: req.workspace._id });
+    await WorkspaceMember.deleteMany({ workspaceId: req.workspace._id });
+
+    const projectIds = await Project.find({ workspaceId: req.workspace._id }).distinct("_id");
+    await Project.deleteMany({ workspaceId: req.workspace._id });
+    await Task.deleteMany({ projectId: { $in: projectIds } });
+
+    res.json({ success: true, message: "Workspace deleted" });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function listMembers(req, res, next) {
+  try {
+    const members = await WorkspaceMember.find({ workspaceId: req.workspace._id })
+      .populate("userId", "name email")
+      .sort({ createdAt: 1 });
+
+    res.json({ success: true, members: members.map((m) => normalizeMember(m, m.userId)) });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function addMember(req, res, next) {
+  try {
+    const { email, role } = req.body;
+
+    if (!email) return next(new ApiError(400, "Email is required"));
+
+    const callerRole = req.memberRole;
+    const requestedRole = role === "Admin" ? "Admin" : role === "Viewer" ? "Viewer" : "Member";
+
+    if (callerRole !== "Admin" && requestedRole === "Admin") {
+      return next(new ApiError(403, "Only admins can grant the Admin role"));
+    }
+
+    const User = require("../models/user.model");
+    const user = await User.findOne({ email: String(email).toLowerCase().trim() });
+
+    if (!user) {
+      return next(new ApiError(404, "No account exists for that email"));
+    }
+
+    const existing = await WorkspaceMember.findOne({
+      workspaceId: req.workspace._id,
+      userId: user._id,
+    });
+
+    if (existing) {
+      return next(new ApiError(409, "This user is already a member"));
+    }
+
+    const member = await WorkspaceMember.create({
+      workspaceId: req.workspace._id,
+      userId: user._id,
+      role: requestedRole,
+    });
+
+    await recordActivity({
+      workspaceId: req.workspace._id,
+      userId: req.user._id,
+      action: "MEMBERSHIP_UPDATED",
+      targetType: "member",
+      targetId: user._id,
+      metadata: { email: user.email, role: requestedRole },
+    });
+
+    await createNotification({
+      userId: user._id,
+      actorId: req.user._id,
+      workspaceId: req.workspace._id,
+      type: "MEMBER_ADDED",
+      title: `You were added to ${req.workspace.name}`,
+      body: `${req.user.name} added you as ${requestedRole.toLowerCase()}.`,
+      link: `/workspaces/${req.workspace._id}`,
+    });
+
+    res.status(201).json({ success: true, member: normalizeMember(member, user) });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function updateMemberRole(req, res, next) {
+  try {
+    const { userId } = req.params;
+    const { role } = req.body;
+
+    const allowedRoles = ["Admin", "Member", "Viewer"];
+    if (!allowedRoles.includes(role)) {
+      return next(new ApiError(400, "Invalid role"));
+    }
+
+    const member = await WorkspaceMember.findOne({
+      workspaceId: req.workspace._id,
+      userId,
+    });
+
+    if (!member) {
+      return next(new ApiError(404, "Member not found"));
+    }
+
+    const targetUser = await require("../models/user.model").findById(userId);
+    const isOwnerTarget = String(req.workspace.ownerId) === String(userId);
+
+    if (isOwnerTarget && role !== "Admin") {
+      return next(new ApiError(400, "Workspace owners must remain admins"));
+    }
+
+    member.role = role;
+    await member.save();
+
+    res.json({ success: true, member: normalizeMember(member, targetUser || {}) });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function removeMember(req, res, next) {
+  try {
+    const { userId } = req.params;
+
+    if (String(req.user._id) === String(userId)) {
+      return next(new ApiError(400, "You cannot remove yourself"));
+    }
+
+    const member = await WorkspaceMember.findOne({
+      workspaceId: req.workspace._id,
+      userId,
+    });
+
+    if (!member) {
+      return next(new ApiError(404, "Member not found"));
+    }
+
+    const isOwnerTarget = String(req.workspace.ownerId) === String(userId);
+    if (isOwnerTarget) {
+      return next(new ApiError(400, "You cannot remove the workspace owner"));
+    }
+
+    await WorkspaceMember.deleteOne({ _id: member._id });
+
+    res.json({ success: true, message: "Member removed" });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function listChannels(req, res, next) {
+  res.json({ success: true, channels: req.workspace.channels || [] });
+}
+
+async function createChannel(req, res, next) {
+  try {
+    const { name } = req.body;
+
+    if (!name || !String(name).trim()) {
+      return next(new ApiError(400, "Channel name is required"));
+    }
+
+    const channelName = String(name).trim().toLowerCase().replace(/\s+/g, "-");
+    if (req.workspace.channels.some((c) => c.name.toLowerCase() === channelName)) {
+      return next(new ApiError(409, "A channel with that name already exists"));
+    }
+
+    req.workspace.channels.push({
+      name: channelName,
+      createdBy: req.user._id,
+    });
+
+    await req.workspace.save();
+
+    res.status(201).json({ success: true, channels: req.workspace.channels });
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = {
+  listWorkspaces,
+  createWorkspace,
+  getWorkspace,
+  updateWorkspace,
+  deleteWorkspace,
+  listMembers,
+  addMember,
+  updateMemberRole,
+  removeMember,
+  listChannels,
+  createChannel,
+};
