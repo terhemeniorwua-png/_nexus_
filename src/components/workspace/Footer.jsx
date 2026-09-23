@@ -14,7 +14,7 @@ export default function Footer() {
   if (PUBLIC_PATHS.includes(pathname)) return null;
 
   return (
-    <footer className="relative z-10 border-t border-zinc-800/80 bg-[#09090B]">
+    <footer className="relative z-10 border-t border-zinc-800/80 bg-[var(--page)]">
       <div className="mx-auto flex h-9 max-w-[1440px] items-center justify-between gap-3 px-5 md:px-6">
         <p className="text-[11.5px] tracking-tight text-zinc-500">
           © {new Date().getFullYear()} Nexus · All rights reserved.

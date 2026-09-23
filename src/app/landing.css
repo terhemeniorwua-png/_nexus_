@@ -1,7 +1,7 @@
 /* Landing page hero styles — scoped to the landing composition root. */
 
 .landing-root {
-  background-color: #09090b;
+  background-color: var(--page);
 }
 
 /* ------------------------------------------------------------------ */
@@ -18,10 +18,7 @@
 .hero-dotgrid {
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(
-    rgba(255, 255, 255, 0.07) 1px,
-    transparent 1px
-  );
+  background-image: radial-gradient(var(--dot) 1px, transparent 1px);
   background-size: 22px 22px;
   -webkit-mask-image: radial-gradient(
     ellipse 90% 70% at 50% 32%,
@@ -67,14 +64,13 @@
 }
 
 .hero-card {
-  background: rgba(255, 255, 255, 0.045);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 24px 48px -12px rgba(0, 0, 0, 0.55),
-    0 12px 24px -8px rgba(0, 0, 0, 0.45);
+    inset 0 1px 0 var(--glass-inset),
+    var(--shadow-card);
 }
 
 @keyframes hero-float {
@@ -167,16 +163,4 @@
     transform: none;
     transition: none;
   }
-}
-
-/* ------------------------------------------------------------------ */
-/* Prevent WebKit autofill from forcing a light background             */
-/* ------------------------------------------------------------------ */
-
-input:-webkit-autofill,
-input:-webkit-autofill:hover,
-input:-webkit-autofill:focus {
-  -webkit-text-fill-color: #ffffff;
-  -webkit-box-shadow: 0 0 0px 1000px #09090b inset;
-  transition: background-color 5000s ease-in-out 0s;
 }

@@ -4,13 +4,13 @@ import { Spinner } from "@/components/auth/Loader";
 
 const variants = {
   primary:
-    "bg-primary text-white hover:bg-blue-700 focus-ring disabled:bg-blue-400/70",
+    "bg-primary text-oncolor hover:bg-blue-700 focus-ring disabled:bg-blue-400/70",
   secondary:
-    "bg-white text-foreground border border-border-subtle hover:bg-slate-50 focus-ring disabled:opacity-60",
+    "bg-surface text-foreground border border-border-subtle hover:bg-surface-raised focus-ring disabled:opacity-60",
   ghost:
-    "bg-transparent text-primary hover:bg-blue-50 focus-ring disabled:opacity-60",
+    "bg-transparent text-primary hover:bg-primary/10 focus-ring disabled:opacity-60",
   danger:
-    "bg-danger text-white hover:bg-red-700 focus-ring disabled:bg-red-400/70",
+    "bg-danger text-oncolor hover:bg-red-700 focus-ring disabled:bg-red-400/70",
 };
 
 const sizes = {

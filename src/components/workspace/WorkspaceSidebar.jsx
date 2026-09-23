@@ -16,7 +16,7 @@ function NavLink({ href, active, icon, label, badge }) {
       <span className="text-current opacity-80">{icon}</span>
       <span className="flex-1 truncate">{label}</span>
       {badge != null && badge > 0 && (
-        <span className="rounded-full bg-blue-600/90 px-1.5 py-0.5 text-[10px] font-bold text-white">
+        <span className="rounded-full bg-blue-600/90 px-1.5 py-0.5 text-[10px] font-bold text-oncolor">
           {badge}
         </span>
       )}
@@ -36,7 +36,7 @@ export default function WorkspaceSidebar({ workspaceId, workspaceName, role }) {
   const isActive = (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`);
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-white/10 bg-[#0b0b0f]/70 backdrop-blur-md">
+    <aside className="flex w-64 shrink-0 flex-col border-r border-white/10 bg-[var(--sidebar-bg)] backdrop-blur-md">
       <div className="px-4 pt-5 pb-3">
         <p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
           Workspace

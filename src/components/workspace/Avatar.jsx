@@ -37,7 +37,7 @@ export default function Avatar({
 
   return (
     <span
-      className={`relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold text-white ${className}`}
+      className={`relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold text-oncolor ${className}`}
       style={{
         width: size,
         height: size,
@@ -54,7 +54,7 @@ export default function Avatar({
       )}
       {showPresence && (
         <span
-          className={`absolute bottom-0 right-0 block rounded-full border-2 border-[#09090b] ${
+          className={`absolute bottom-0 right-0 block rounded-full border-2 border-[var(--page)] ${
             online ? "bg-emerald-400" : "bg-zinc-600"
           }`}
           style={{ width: Math.max(8, size * 0.28), height: Math.max(8, size * 0.28) }}

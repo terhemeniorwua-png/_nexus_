@@ -22,14 +22,14 @@ export function Avatar({
 
   return (
     <span
-      className={`relative inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-white ${gradient} ${className}`}
+      className={`relative inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-oncolor ${gradient} ${className}`}
       style={{ width: size, height: size, fontSize: size * 0.38 }}
     >
       {initials}
       {online && (
         <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
           <span className="hero-ping-dot absolute h-full w-full rounded-full bg-emerald-400" />
-          <span className="relative h-2.5 w-2.5 rounded-full border-2 border-zinc-950 bg-emerald-400" />
+          <span className="relative h-2.5 w-2.5 rounded-full border-2 border-[var(--page)] bg-emerald-400" />
         </span>
       )}
     </span>

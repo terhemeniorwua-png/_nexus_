@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/hooks/useNotifications";
 import { NexusLogo } from "@/components/NexusLogo";
 import Avatar from "./Avatar";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { HomeIcon, ListTasksIcon, BellIcon, GridIcon, LogOutIcon } from "./icons";
 
 const NAV_ITEMS = [
@@ -35,7 +36,7 @@ export function GlobalNavLinks({ className = "" }) {
             <span className="opacity-80">{item.icon}</span>
             {item.label}
             {item.href === "/notifications" && unreadCount > 0 && (
-              <span className="ml-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-blue-600 px-1 text-[10.5px] font-bold text-white">
+              <span className="ml-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-blue-600 px-1 text-[10.5px] font-bold text-oncolor">
                 {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             )}
@@ -63,7 +64,7 @@ export default function GlobalNav() {
   }
 
   return (
-    <header className="relative z-30 border-b border-white/10 bg-[#0b0b0f]/80 backdrop-blur-md">
+    <header className="sticky top-0 z-30 border-b border-white/10 bg-[var(--header-bg)] backdrop-blur-md">
       <div className="flex h-16 shrink-0 items-center justify-between gap-4 px-4 md:px-6">
         <Link href="/dashboard" className="flex shrink-0 items-center gap-2.5">
           <NexusLogo size={26} />
@@ -75,6 +76,7 @@ export default function GlobalNav() {
         </div>
 
         <div className="flex flex-1 items-center justify-end gap-2.5">
+          <ThemeToggle />
           <div className="relative">
             <button
               type="button"

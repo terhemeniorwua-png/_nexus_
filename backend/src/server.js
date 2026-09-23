@@ -7,7 +7,7 @@ const connectDB = require("./config/db");
 const app = require("./app");
 const { initSocket } = require("./sockets");
 
-const port = Number(process.env.PORT) || 5000;
+const port = Number(process.env.PORT);
 
 async function start() {
   await connectDB();

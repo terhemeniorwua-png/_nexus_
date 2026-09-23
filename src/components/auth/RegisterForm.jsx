@@ -88,7 +88,11 @@ export function RegisterForm() {
       await register({ name, email, password, confirmPassword });
       router.replace("/dashboard");
     } catch (error) {
-      setSubmitError(error.message || "Unable to create your account right now. Please try again.");
+      setSubmitError(
+        error?.status
+          ? error.message
+          : "Unable to create your account right now. Please try again."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -178,7 +182,7 @@ export function RegisterForm() {
             className="peer sr-only"
           />
           <span
-            className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border text-transparent transition-colors peer-checked:text-white ${
+            className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border text-transparent transition-colors peer-checked:text-oncolor ${
               termsError
                 ? "border-red-400/60"
                 : "border-white/20"

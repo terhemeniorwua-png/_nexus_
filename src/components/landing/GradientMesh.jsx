@@ -40,7 +40,7 @@ export function GradientMesh() {
       <div
         className="absolute inset-x-0 bottom-0 h-40"
         style={{
-          background: "linear-gradient(to top, #09090b, transparent)",
+          background: "linear-gradient(to top, var(--page), transparent)",
         }}
       />
     </div>

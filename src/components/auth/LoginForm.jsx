@@ -72,22 +72,24 @@ export function LoginForm({ persona: personaProp }) {
 
     setSubmitting(true);
     try {
-      const result = await signIn("credentials", {
-        email,
-        password,
-        ...(persona.type === "team" && workspace ? { workspace } : {}),
-        redirect: false,
-      });
-
-      if (result?.error) {
-        setSubmitError(SIGNIN_ERROR_MESSAGES.CredentialsSignin);
-        return;
-      }
-
       await login(email, password);
+      try {
+        await signIn("credentials", {
+          email,
+          password,
+          ...(persona.type === "team" && workspace ? { workspace } : {}),
+          redirect: false,
+        });
+      } catch {
+        /* NextAuth session is secondary — the backend cookie is already set */
+      }
       router.replace("/dashboard");
-    } catch {
-      setSubmitError("Unable to sign in right now. Please try again.");
+    } catch (error) {
+      setSubmitError(
+        error?.status
+          ? error.message
+          : "Unable to sign in right now. Please try again."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -164,7 +166,7 @@ export function LoginForm({ persona: personaProp }) {
                 onChange={(event) => setRememberMe(event.target.checked)}
                 className="peer sr-only"
               />
-              <span className="flex h-4 w-4 items-center justify-center rounded border border-white/20 bg-white/5 text-transparent transition-colors peer-checked:border-indigo-400 peer-checked:bg-indigo-500 peer-checked:text-white">
+              <span className="flex h-4 w-4 items-center justify-center rounded border border-white/20 bg-white/5 text-transparent transition-colors peer-checked:border-indigo-400 peer-checked:bg-indigo-500 peer-checked:text-oncolor">
                 <CheckIcon size={10} />
               </span>
               <span className="text-sm text-zinc-400">Remember me</span>

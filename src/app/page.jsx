@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import NexusLogoIcon from "@/components/NexusLogo";
 import { GradientMesh } from "@/components/landing/GradientMesh";
 import { GetStarted } from "@/components/landing/GetStarted";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { HeroPreview, Avatar } from "@/components/landing/HeroPreview";
 import { Reveal } from "@/components/landing/Reveal";
 import { TiltCard } from "@/components/landing/TiltCard";
@@ -34,7 +35,7 @@ export default function LandingPage() {
     <div className="landing-root relative flex min-h-dvh flex-col overflow-x-clip text-zinc-100">
       <GradientMesh />
 
-      <header className="relative z-10 flex h-16 items-center justify-between border-b border-white/10 px-6">
+      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-white/10 bg-[var(--header-bg)] px-6 backdrop-blur-md">
         <span className="inline-flex items-center gap-2.5">
           <NexusLogoIcon size={28} />
           <span
@@ -45,6 +46,7 @@ export default function LandingPage() {
           </span>
         </span>
         <nav className="flex items-center gap-3">
+          <ThemeToggle />
           <Suspense fallback={null}>
             <GetStarted />
           </Suspense>

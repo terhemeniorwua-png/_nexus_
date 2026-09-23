@@ -8,6 +8,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { BellIcon, ArrowLeftIcon, LogOutIcon, SparkIcon } from "./icons";
 import Avatar from "./Avatar";
 import { GlobalNavLinks } from "./GlobalNav";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { useRouter } from "next/navigation";
 
 export default function Topbar({ workspaceName, backHref = "/dashboard" }) {
@@ -28,7 +29,7 @@ export default function Topbar({ workspaceName, backHref = "/dashboard" }) {
   }
 
   return (
-    <header className="relative z-20 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-[#0b0b0f]/80 px-4 backdrop-blur-md md:px-6">
+    <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-[var(--header-bg)] px-4 backdrop-blur-md md:px-6">
       <div className="flex min-w-0 items-center gap-3">
         <Link href={backHref} className="text-zinc-400 transition-colors hover:text-white" aria-label="Go back">
           <ArrowLeftIcon size={18} />
@@ -52,6 +53,7 @@ export default function Topbar({ workspaceName, backHref = "/dashboard" }) {
       </div>
 
       <div className="flex items-center gap-2.5">
+        <ThemeToggle />
         <Link
           href="/notifications"
           aria-label={`Notifications (${unreadCount} unread)`}
@@ -59,7 +61,7 @@ export default function Topbar({ workspaceName, backHref = "/dashboard" }) {
         >
           <BellIcon size={17} />
           {unreadCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-blue-600 px-1 text-[10.5px] font-bold text-white shadow-[0_0_10px_rgba(37,99,235,0.6)]">
+            <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-blue-600 px-1 text-[10.5px] font-bold text-oncolor shadow-[0_0_10px_rgba(37,99,235,0.6)]">
               {unreadCount > 99 ? "99+" : unreadCount}
             </span>
           )}

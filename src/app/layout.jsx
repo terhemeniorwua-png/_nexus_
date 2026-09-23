@@ -27,7 +27,15 @@ export default function RootLayout({ children }) {
     <html
       lang="en"
       className={`${inter.variable} ${jetbrainsMono.variable}`}
+      suppressHydrationWarning
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("nexus-theme");var light=t==="light";var root=document.documentElement;if(light)root.classList.add("light");root.style.colorScheme=light?"light":"dark";}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body>
         <AuthProvider>
           {children}
