@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import NexusLogoIcon from "@/components/NexusLogo";
 import { GradientMesh } from "@/components/landing/GradientMesh";
 import { GetStarted } from "@/components/landing/GetStarted";
@@ -46,12 +45,9 @@ export default function LandingPage() {
           </span>
         </span>
         <nav className="flex items-center gap-3">
-          <Link
-            href="/login"
-            className="rounded-lg px-3.5 py-2 text-sm font-medium text-zinc-300 transition-colors hover:bg-white/5 hover:text-zinc-50 focus-ring"
-          >
-            Sign in
-          </Link>
+          <Suspense fallback={null}>
+            <GetStarted />
+          </Suspense>
         </nav>
       </header>
 
@@ -80,12 +76,6 @@ export default function LandingPage() {
                 <Suspense fallback={null}>
                   <GetStarted />
                 </Suspense>
-                <Link
-                  href="/login"
-                  className="inline-flex h-11 items-center justify-center rounded-lg border border-white/10 bg-white/5 px-6 text-sm font-medium text-zinc-100 backdrop-blur transition-colors hover:bg-white/10 focus-ring"
-                >
-                  Sign in
-                </Link>
               </div>
             </Reveal>
 

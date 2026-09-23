@@ -15,7 +15,7 @@ const STEP = {
 
 export function GetStarted({
   children = "Get Started",
-  className = "inline-flex h-11 items-center justify-center rounded-lg bg-primary px-6 text-sm font-medium text-white shadow-[0_8px_30px_rgba(37,99,235,0.45)] transition-colors hover:bg-blue-700 focus-ring",
+  className = "inline-flex h-11 items-center justify-center rounded-lg bg-primary px-6 text-sm font-medium text-white shadow-[0_8px_30px_rgba(37,99,235,0.45)] transition-[background-color,transform] hover:bg-blue-700 hover:scale-y-95 focus-ring",
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();

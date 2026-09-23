@@ -1,1862 +1,977 @@
-Below is a full project README/specification you can use as the master blueprint for building the graduation project. I’ve designed it around the idea we developed: Trello-like work management + Notion-like documentation + Slack-like communication, all connected inside one workspace.
 
-WorkSpace — Full Project README & Technical Specification
-WorkSpace
+1. Frontend README — nexus-frontend/README.md
 
-A real-time collaborative workspace that brings project management, task tracking, team documentation, and communication into one unified platform.
+# Nexus — Frontend
 
-WorkSpace is a full-stack Web2 collaboration platform designed for teams, organizations, student groups, agencies, startups, and businesses that need one centralized place to organize work.
+> A real-time collaborative project, research, task, and team management platform built for organizations, student teams, and distributed project groups.
 
-The platform combines three major capabilities:
+Nexus is a modern collaborative workspace that helps teams plan projects, assign work, track progress, submit deliverables, review work, communicate in real time, and maintain a centralized record of project activity.
 
-Trello-inspired: project and task management
-Notion-inspired: documentation and knowledge management
-Slack-inspired: real-time team communication
+The frontend is responsible for providing the complete user-facing experience of Nexus, including authentication, workspace management, project management, task execution, file submissions, reviews, communication, notifications, analytics, and real-time collaboration.
 
-Unlike a simple CRUD application, WorkSpace demonstrates a complete modern Web2 architecture involving authentication, authorization, REST APIs, real-time communication, database relationships, file uploads, notifications, activity tracking, analytics, and responsive frontend design.
+---
 
-1. Project Vision
+## Table of Contents
 
-Teams often use multiple disconnected tools:
+* [Overview](#overview)
+* [Core Concept](#core-concept)
+* [Frontend Responsibilities](#frontend-responsibilities)
+* [Technology Stack](#technology-stack)
+* [Application Architecture](#application-architecture)
+* [User Roles](#user-roles)
+* [Permission Model](#permission-model)
+* [Workspace System](#workspace-system)
+* [Team System](#team-system)
+* [Project System](#project-system)
+* [Task Management](#task-management)
+* [Subtask and Progress System](#subtask-and-progress-system)
+* [Deliverables and Review System](#deliverables-and-review-system)
+* [Project Communication](#project-communication)
+* [Workspace Communication](#workspace-communication)
+* [Direct Messaging](#direct-messaging)
+* [Notifications](#notifications)
+* [Activity Tracking](#activity-tracking)
+* [Project Knowledge Base](#project-knowledge-base)
+* [Dashboard](#dashboard)
+* [Analytics](#analytics)
+* [Authentication](#authentication)
+* [Real-Time Features](#real-time-features)
+* [Frontend Routing](#frontend-routing)
+* [Component Structure](#component-structure)
+* [State Management](#state-management)
+* [API Communication](#api-communication)
+* [Error Handling](#error-handling)
+* [Loading States](#loading-states)
+* [Responsive Design](#responsive-design)
+* [Security Considerations](#security-considerations)
+* [Environment Variables](#environment-variables)
+* [Installation](#installation)
+* [Development](#development)
+* [Production Build](#production-build)
+* [Recommended Folder Structure](#recommended-folder-structure)
+* [Development Principles](#development-principles)
+* [Future Improvements](#future-improvements)
 
-GitHub       → Code
-Trello       → Tasks
-Notion       → Documentation
-Slack        → Communication
-Google Drive → Files
+---
 
-This can cause information to become scattered across different platforms.
+# Overview
 
-WorkSpace brings the core workflow into one environment:
+Nexus is designed around the idea that managing a project involves more than simply creating tasks.
 
-                    WORKSPACE
-                        │
-          ┌─────────────┼─────────────┐
-          │             │             │
-          ▼             ▼             ▼
-       WORK          KNOWLEDGE    COMMUNICATION
-          │             │             │
-          ▼             ▼             ▼
-       Tasks        Documents      Messages
-       Projects     Notes          Channels
-       Boards       Files          Comments
-       Deadlines    Research       Notifications
-       Assignments  Guidelines     Presence
+A complete project workflow can be represented as:
 
-The goal is not to replace specialized platforms such as GitHub, but to provide a centralized environment for managing the broader work surrounding a project.
-
-2. Problem Statement
-
-Organizations and teams frequently manage work across several disconnected applications.
-
-For example, a software team might have:
-
-GitHub for source code
-WhatsApp/Slack for communication
-Google Docs for documentation
-Trello for tasks
-Google Drive for files
-
-Important information can therefore become fragmented.
-
-A team member may know that a task exists in Trello but find the requirements in Notion and the conversation about the task in Slack.
-
-WorkSpace solves this by connecting:
-
+```text
+Workspace
+   ↓
+Team
+   ↓
+Project
+   ↓
 Task
-  │
-  ├── Assignee
-  ├── Comments
-  ├── Documents
-  ├── Attachments
-  ├── Activity
-  └── Notifications
-
-within a single workspace.
-
-3. Target Users
-
-WorkSpace can be used by:
-
-Software Teams
-
-Manage:
-
-Features
-Bugs
-Development tasks
-Sprints
-Documentation
-Team communication
-Student Groups
-
-Manage:
-
-Final-year projects
-Assignments
-Research
-Group work
-Presentation preparation
-Marketing Teams
-
-Manage:
-
-Campaigns
-Content
-Social media
-Deadlines
-Creative assets
-NGOs
-
-Manage:
-
-Community projects
-Volunteers
-Events
-Outreach activities
-Event Teams
-
-Manage:
-
-Venues
-Speakers
-Sponsors
-Logistics
-Marketing
-Small Businesses
-
-Manage:
-
-Operations
-Projects
-Employees
-Internal requests
-Business documentation
-4. Core Product Concept
-
-The application is organized around:
-
-User
- │
- └── Workspace
-       │
-       ├── Members
-       │
-       ├── Projects
-       │      │
-       │      ├── Tasks
-       │      ├── Board
-       │      ├── Documents
-       │      └── Activity
-       │
-       ├── Documents
-       │
-       ├── Messages
-       │
-       ├── Files
-       │
-       └── Notifications
-5. Main Navigation
-
-The application should avoid an unnecessarily large sidebar.
-
-Global Navigation
-Home
-My Tasks
-Messages
-Notifications
-Workspaces
-Settings
-Workspace Navigation
-
-When a user enters a workspace:
-
-Overview
-Projects
-Tasks
-Documents
-Messages
-Files
-Members
-Project Navigation
-
-When a user enters a project:
-
-Overview
-Board
-Tasks
-Documents
-Activity
-
-This creates a hierarchical navigation system rather than placing every feature in one sidebar.
-
-6. User Experience
-
-The UX should feel like a modern SaaS application.
-
-The interface should prioritize:
-
-simplicity
-speed
-clear hierarchy
-minimal navigation
-responsive design
-instant feedback
-real-time updates
-meaningful empty states
-accessible forms
-consistent components
-7. Authentication Experience
-
-Users should be able to:
-
-Register
-Login
-Logout
-View their profile
-Update their profile
-Change password
-Recover password
-
-Authentication should use:
-
-JWT
-+
-HttpOnly Cookies
-+
-bcrypt password hashing
-
-The user should not need to manually handle tokens.
-
-8. User Roles
-
-The initial system should support three roles.
-
-Admin
-
-Can:
-
-Create workspace
-Update workspace
-Delete workspace
-Invite members
-Remove members
-Manage roles
-Create projects
-Create tasks
-Assign tasks
-Manage documents
-Manage channels
-View analytics
-Member
-
-Can:
-
-View workspace
-View projects
-Create tasks
-Update assigned tasks
-Move tasks
-Comment
-Create documents
-Send messages
-Upload files
-Viewer
-
-Can:
-
-View workspace
-View projects
-View tasks
-View documents
-View messages
-
-Viewers cannot modify workspace data.
-
-9. Home Dashboard
-
-The home page provides a personal overview.
-
-Example:
-
-Good morning, Philip 👋
-
-Here's what's happening today.
-
-┌─────────────┐
-│ 12          │
-│ My Tasks    │
-└─────────────┘
-
-┌─────────────┐
-│ 5           │
-│ Due Soon    │
-└─────────────┘
-
-┌─────────────┐
-│ 2           │
-│ Overdue     │
-└─────────────┘
-
-Below this:
-
-My Tasks
-
-Build Authentication       In Progress
-Design Homepage            Review
-Create API                 To Do
-
-And:
-
-Recent Activity
-
-Sarah completed "Homepage Design"
-John commented on "Payment API"
-Philip created "Mobile UI"
-10. My Tasks
-
-The My Tasks page aggregates tasks assigned to the current user across all workspaces.
-
-Filters:
-
-All
-To Do
-In Progress
-Review
-Done
-
-Additional filters:
-
-Workspace
-Project
-Priority
-Due date
-Tags
-
-Example:
-
-TASK                    PROJECT             STATUS
------------------------------------------------------
-Build Authentication    Website             In Progress
-Design Homepage         Website             Review
-Create API              Mobile App          To Do
-Write Documentation     Internal Tools      Done
-11. Workspace System
-
-Users can belong to multiple workspaces.
-
-Example:
-
-My Workspaces
-
-🏢 Acme Development
-🎓 University Project
-📢 Marketing Team
-
-A workspace represents an organization, team, class, department, or project group.
-
-12. Workspace Overview
-
-The workspace overview displays:
-
-Workspace Name
-Workspace Description
-
-Members: 14
-Projects: 5
-Tasks: 87
-
-Project Progress
-Upcoming Deadlines
-Recent Activity
-Team Activity
-13. Project Management
-
-A workspace can contain multiple projects.
-
-Example:
-
-Acme Development
-
-Projects:
-
-Website Redesign
-Mobile Application
-Marketing Campaign
-Internal Dashboard
-
-Each project contains:
-
-Overview
-Board
-Tasks
-Documents
-Activity
-14. Kanban Board
-
-The board is the Trello-inspired portion of WorkSpace.
-
-Default columns:
-
-TO DO
-IN PROGRESS
-REVIEW
-DONE
-
-Example:
-
-TO DO                 IN PROGRESS          REVIEW             DONE
-
-Design Login          Build API            Homepage           Database
-Write Copy            Payment System       Mobile UI          Project Setup
-Research              Authentication
-
-Tasks can be dragged between columns.
-
-15. Task System
-
-Every task should contain:
-
-Title
-Description
-Status
-Priority
-Assignee
-Creator
-Project
-Column
-Due Date
-Tags
+   ↓
 Subtasks
-Attachments
-Comments
-Created At
-Updated At
-Completed At
+   ↓
+Work / Attachments / Comments
+   ↓
+Deliverable
+   ↓
+Review
+   ↓
+Approval / Changes Requested
+   ↓
+Knowledge Base
+```
+
+The frontend provides interfaces for every stage of this workflow.
+
+---
+
+# Core Concept
+
+Nexus separates four important concepts:
+
+### 1. Progress
+
+Progress measures how much defined work has been completed.
 
 Example:
 
-Build Authentication
+```text
+Research Task
 
-Description:
-Implement secure login and registration.
+Subtasks:
+✓ Find 5 sources          20%
+✓ Research benefits       20%
+✓ Research disadvantages  20%
+○ Write report            20%
+○ Add citations           20%
 
-Assigned to:
-John
+Progress: 60%
+```
 
-Priority:
-High
+### 2. Activity
 
-Status:
-In Progress
-
-Due:
-September 25
-
-Tags:
-Backend
-Authentication
-Security
-16. Task Lifecycle
-
-The default workflow is:
-
-TO DO
-  ↓
-IN PROGRESS
-  ↓
-REVIEW
-  ↓
-DONE
-
-The assigned member can update the task.
-
-Admins can also modify tasks.
-
-The Review stage provides basic quality control.
-
-Example:
-
-John finishes task
-       ↓
-Moves task to REVIEW
-       ↓
-Team lead receives notification
-       ↓
-Team lead reviews task
-       │
-       ├── Approve → DONE
-       │
-       └── Changes → IN PROGRESS
-17. Subtasks
-
-A task can contain smaller tasks.
-
-Example:
-
-Build Login Page
-
-☑ Create form
-☑ Add validation
-☑ Connect API
-☐ Handle errors
-☐ Test authentication
-
-Completion percentage can be calculated from completed subtasks.
-
-18. Tags
-
-Tasks can have multiple tags.
-
-Example:
-
-[Frontend]
-[Backend]
-[Bug]
-[Urgent]
-[Authentication]
-
-Tags help users filter large task lists.
-
-19. Priorities
-
-Tasks can have:
-
-Low
-Medium
-High
-Urgent
-
-Priority should be visually clear without overwhelming the interface.
-
-20. Deadlines
-
-Every task can optionally have a due date.
-
-The system should automatically identify overdue tasks.
-
-Example:
-
-Due:
-September 15
-
-Current:
-September 17
-
-Status:
-In Progress
-
-→ OVERDUE
-
-The backend should calculate overdue status rather than requiring users to manually mark a task overdue.
-
-21. Activity History
-
-Every important action should generate an activity record.
+Activity records meaningful actions performed inside Nexus.
 
 Examples:
 
-Philip created "Build Login"
+```text
+Philip started a task
+Sarah completed a subtask
+John uploaded a document
+Mary commented on a task
+Philip submitted a deliverable
+Sarah approved the submission
+```
 
-Sarah was assigned "Design Homepage"
+### 3. Deliverable
 
-John moved "Payment API"
-from To Do → In Progress
-
-Sarah completed "Homepage Design"
-
-Philip uploaded "requirements.pdf"
-
-This provides an audit trail.
-
-22. Documents
-
-The Notion-inspired part of the application allows teams to store project knowledge.
-
-Documents can contain:
-
-Project Requirements
-Meeting Notes
-Research
-Technical Documentation
-Design Guidelines
-Business Requirements
-
-Example:
-
-Project Requirements
-
-# Product
-
-## Objective
-
-Build a food delivery application.
-
-## Target Users
-
-Students and young professionals.
-
-## Features
-
-- Restaurant discovery
-- Food ordering
-- Payments
-- Delivery tracking
-
-A Markdown-based editor can be used for the MVP.
-
-23. Document Organization
-
-Documents should support:
-
-Workspace
-   │
-   ├── General Documentation
-   ├── Meeting Notes
-   └── Policies
-
-Project
-   │
-   ├── Requirements
-   ├── Technical Documentation
-   ├── Research
-   └── Design Notes
-24. Team Communication
-
-The Slack-inspired section provides real-time communication.
-
-Workspace channels:
-
-# general
-# development
-# design
-# marketing
-
-Users can:
-
-Send messages
-Reply
-Delete their messages
-Mention users
-See timestamps
-See online status
-25. Real-Time Messaging
-
-Socket.io should power real-time communication.
-
-When Philip sends:
-
-"API is ready for testing."
-
-other connected users should see it immediately.
-
-No page refresh should be required.
-
-26. Task Comments
-
-Communication should also exist at the task level.
-
-Example:
-
-Task:
-Build Payment API
-
-Philip:
-@John, please add error handling.
-
-John:
-Done. I've pushed the changes.
-
-This keeps task-specific conversations attached to the work itself.
-
-27. Presence
-
-Users should be able to see who is online.
-
-Example:
-
-🟢 Philip
-🟢 Sarah
-🟢 John
-
-Task presence can also be implemented:
-
-Sarah is viewing this task
-
-Socket.io handles these real-time presence events.
-
-28. Notifications
-
-Users should receive notifications for important events.
+A deliverable is the actual output of a task.
 
 Examples:
 
-🔔 You were assigned "Build Authentication"
+* PDF
+* DOCX
+* XLSX
+* PPTX
+* Images
+* Research documents
+* Source code
+* Design files
 
-🔔 Sarah commented on "Homepage Design"
+### 4. Review
 
-🔔 Your task is due tomorrow
+Review determines whether the submitted work is accepted or needs changes.
 
-🔔 John mentioned you in #development
+```text
+SUBMITTED
+    ↓
+UNDER REVIEW
+    ↓
+ ┌───────────────┐
+ ↓               ↓
+APPROVED     CHANGES REQUESTED
+```
 
-🔔 Your task was approved
+---
 
-Notifications can appear in the global notification center.
+# Frontend Responsibilities
 
-29. Files
+The frontend is responsible for:
 
-Users should be able to attach files to tasks and documents.
+* Rendering the user interface
+* Authentication screens
+* Workspace navigation
+* Project dashboards
+* Team management
+* Task management
+* Subtask management
+* Progress visualization
+* File upload interfaces
+* Deliverable submission
+* Review interfaces
+* Comments
+* Activity timelines
+* Notifications
+* Messaging
+* Search
+* Filters
+* Analytics
+* Permission-aware UI
+* Real-time updates
+* Responsive design
+* Error states
+* Loading states
 
-Examples:
+The frontend does **not** make security decisions by itself.
 
-requirements.pdf
-homepage.png
-database-schema.png
-project-plan.xlsx
+The backend remains responsible for validating authentication and authorization.
 
-The backend handles uploads and stores file metadata.
+---
 
-For production deployment, files can be stored using a cloud storage provider.
+# Technology Stack
 
-30. Search
+Recommended stack:
 
-Global search should eventually allow users to search:
+| Technology              | Purpose                 |
+| ----------------------- | ----------------------- |
+| Next.js                 | Frontend framework      |
+| React                   | UI                      |
+| JavaScript              | Application language    |
+| Tailwind CSS            | Styling                 |
+| Lucide React            | Icons                   |
+| Axios / Fetch           | API communication       |
+| Socket.IO Client        | Real-time communication |
+| React Context / Zustand | Client state            |
+| React Hook Form         | Form management         |
+| Zod                     | Client-side validation  |
+| date-fns                | Date handling           |
 
-Tasks
-Projects
-Documents
-Messages
-Members
-Files
+---
 
-Example:
+# Application Architecture
 
-Search:
-"authentication"
+The frontend follows a modular architecture.
 
-Results:
-
-Task:
-Build Authentication
-
-Document:
-Authentication Requirements
-
-Message:
-"Authentication API is ready"
-
-File:
-authentication-flow.pdf
-31. Analytics
-
-The workspace/project overview can provide useful work metrics.
-
-Example:
-
-PROJECT PERFORMANCE
-
-Total Tasks       100
-Completed          67
-In Progress        21
-In Review            7
-To Do                5
-
-Additional analytics:
-
-Tasks completed per week
-Tasks created per week
-Overdue tasks
-Completion rate
-Project progress
-Average task completion time
-Task distribution by status
-Activity volume
-
-Charts can be implemented using Recharts.
-
-32. Real-Time Architecture
-
-The real-time architecture is one of the main technical features.
-
-Browser A
-   │
-   │ Socket.io
-   ▼
-┌─────────────────────┐
-│ Express + Socket.io │
-└──────────┬──────────┘
-           │
-           ├── Update database
-           │
-           └── Broadcast event
-                    │
-          ┌─────────┼─────────┐
-          ▼         ▼         ▼
-      Browser B  Browser C  Browser D
-
-Example:
-
-Philip moves:
-
-Build Login
-To Do → In Progress
-
-Express:
-
-Authenticates Philip
-Verifies workspace membership
-Updates MongoDB
-Creates activity record
-Broadcasts Socket.io event
-
-Other users immediately see the task move.
-
-33. Backend Architecture
-
-The backend should use a modular Express architecture.
-
-server/
+```text
+Next.js Application
 │
-├── config/
-│   ├── database.js
-│   └── environment.js
+├── Authentication
 │
-├── controllers/
-│   ├── authController.js
-│   ├── userController.js
-│   ├── workspaceController.js
-│   ├── projectController.js
-│   ├── taskController.js
-│   ├── documentController.js
-│   ├── messageController.js
-│   ├── commentController.js
-│   ├── notificationController.js
-│   ├── fileController.js
-│   └── analyticsController.js
+├── Workspace
 │
-├── models/
-│   ├── User.js
-│   ├── Workspace.js
-│   ├── WorkspaceMember.js
-│   ├── Project.js
-│   ├── BoardColumn.js
-│   ├── Task.js
-│   ├── Subtask.js
-│   ├── Document.js
-│   ├── Message.js
-│   ├── Comment.js
-│   ├── Notification.js
-│   ├── Attachment.js
-│   └── Activity.js
+│   ├── Teams
+│   ├── Projects
+│   ├── Members
+│   └── Communication
 │
-├── routes/
-│   ├── authRoutes.js
-│   ├── userRoutes.js
-│   ├── workspaceRoutes.js
-│   ├── projectRoutes.js
-│   ├── taskRoutes.js
-│   ├── documentRoutes.js
-│   ├── messageRoutes.js
-│   ├── commentRoutes.js
-│   ├── notificationRoutes.js
-│   ├── fileRoutes.js
-│   └── analyticsRoutes.js
+├── Project
 │
-├── middleware/
-│   ├── authMiddleware.js
-│   ├── roleMiddleware.js
-│   ├── workspaceMiddleware.js
-│   ├── uploadMiddleware.js
-│   └── errorMiddleware.js
+│   ├── Overview
+│   ├── Tasks
+│   ├── Submissions
+│   ├── Files
+│   ├── Discussions
+│   ├── Activity
+│   └── Knowledge Base
 │
-├── services/
-│   ├── authService.js
-│   ├── workspaceService.js
-│   ├── taskService.js
-│   ├── notificationService.js
-│   ├── fileService.js
-│   └── analyticsService.js
+├── Messaging
 │
-├── sockets/
-│   ├── index.js
-│   ├── boardSocket.js
-│   ├── messageSocket.js
-│   └── presenceSocket.js
+├── Notifications
 │
-├── utils/
-│   ├── jwt.js
-│   ├── bcrypt.js
-│   ├── validation.js
-│   └── errors.js
-│
-├── app.js
-└── server.js
-34. Frontend Architecture
+└── User Settings
+```
 
-The Next.js application should use the App Router.
+---
 
-client/
-│
-├── app/
-│   ├── page.js
-│   │
-│   ├── login/
-│   │   └── page.js
-│   │
-│   ├── register/
-│   │   └── page.js
-│   │
-│   ├── dashboard/
-│   │   └── page.js
-│   │
-│   ├── tasks/
-│   │   └── page.js
-│   │
-│   ├── messages/
-│   │   └── page.js
-│   │
-│   ├── notifications/
-│   │   └── page.js
-│   │
-│   ├── workspaces/
-│   │   ├── page.js
-│   │   │
-│   │   └── [workspaceId]/
-│   │       ├── page.js
-│   │       │
-│   │       ├── projects/
-│   │       │   ├── page.js
-│   │       │   │
-│   │       │   └── [projectId]/
-│   │       │       ├── page.js
-│   │       │       ├── board/
-│   │       │       │   └── page.js
-│   │       │       ├── tasks/
-│   │       │       │   └── page.js
-│   │       │       ├── documents/
-│   │       │       │   └── page.js
-│   │       │       └── activity/
-│   │       │           └── page.js
-│   │       │
-│   │       ├── documents/
-│   │       │   └── page.js
-│   │       │
-│   │       ├── messages/
-│   │       │   └── page.js
-│   │       │
-│   │       ├── files/
-│   │       │   └── page.js
-│   │       │
-│   │       ├── members/
-│   │       │   └── page.js
-│   │       │
-│   │       └── settings/
-│   │           └── page.js
-│   │
-│   ├── settings/
-│   │   └── page.js
-│   │
-│   └── layout.js
-│
-├── components/
-│   ├── ui/
-│   ├── layout/
-│   ├── dashboard/
-│   ├── workspace/
-│   ├── project/
-│   ├── board/
-│   ├── task/
-│   ├── document/
-│   ├── chat/
-│   ├── notification/
-│   └── forms/
-│
-├── context/
-│   ├── AuthContext.js
-│   ├── WorkspaceContext.js
-│   └── SocketContext.js
-│
-├── hooks/
-│   ├── useAuth.js
-│   ├── useSocket.js
-│   ├── useTasks.js
-│   └── useNotifications.js
-│
-├── lib/
-│   ├── api.js
-│   └── socket.js
-│
-└── public/
-35. Database Architecture
+# User Roles
 
-MongoDB can be used for the initial implementation.
+Nexus supports multiple levels of access.
 
-Main collections:
+## Workspace Owner
 
-users
-workspaces
-workspaceMembers
-projects
-boardColumns
-tasks
-subtasks
-documents
-messages
-comments
-attachments
-notifications
-activities
-36. User Model
-User
-----
-_id
-name
-email
-password
-avatar
-createdAt
-updatedAt
+The Workspace Owner controls the workspace.
 
-Passwords must never be stored in plaintext.
+Capabilities include:
 
-They should be hashed using bcrypt.
+* Manage workspace
+* Invite users
+* Create teams
+* Manage workspace members
+* Create projects
+* View workspace analytics
+* Manage workspace settings
+* Manage permissions
 
-37. Workspace Model
-Workspace
----------
-_id
-name
-description
-ownerId
-createdAt
-updatedAt
-38. Workspace Member Model
-WorkspaceMember
----------------
-_id
-workspaceId
-userId
-role
-joinedAt
+---
 
-This allows the same user to belong to multiple workspaces with different roles.
+## Project Manager
+
+A Project Manager manages a specific project.
+
+Capabilities include:
+
+* Create tasks
+* Assign tasks
+* Create subtasks
+* Set deadlines
+* Review submissions
+* Request changes
+* Approve deliverables
+* View project analytics
+* Manage project members
+
+---
+
+## Member
+
+Members perform project work.
+
+Capabilities include:
+
+* View assigned projects
+* Work on assigned tasks
+* Complete subtasks
+* Upload files
+* Add comments
+* Submit deliverables
+* Participate in discussions
+* Communicate with other users
+
+---
+
+## Viewer
+
+Viewers have read-only access.
+
+They can:
+
+* View projects
+* View tasks
+* View approved documents
+* View activity
+
+They cannot modify project data.
+
+---
+
+## Collaborator
+
+A collaborator can be invited from another team.
 
 For example:
 
-Philip
-  │
-  ├── Acme Team → Admin
-  │
-  └── University → Member
-39. Project Model
+```text
+Team Alpha
+    ↓
+Project A
+    ↓
+Invite David
+    ↓
+David belongs to Team Beta
+```
+
+David receives access to Project A without receiving access to Team Alpha's other private projects.
+
+---
+
+# Permission Model
+
+Nexus uses layered permissions.
+
+```text
+Workspace Permission
+        ↓
+Team Permission
+        ↓
+Project Permission
+        ↓
+Task Permission
+```
+
+A user being part of a workspace does not automatically give them access to every private project.
+
+Example:
+
+```text
+Workspace
+│
+├── Team Alpha
+│   └── Project A
+│
+└── Team Beta
+    └── Project B
+```
+
+Team Beta cannot automatically open Project A.
+
+If a Team Beta member is invited to Project A, they receive access to Project A only.
+
+---
+
+# Workspace System
+
+The workspace is the highest organizational level.
+
+A workspace can contain:
+
+* Multiple teams
+* Multiple projects
+* Workspace members
+* Workspace channels
+* Announcements
+* Workspace activity
+* Workspace analytics
+
+Example:
+
+```text
+Nexus Workspace
+│
+├── Team Alpha
+├── Team Beta
+├── Team Gamma
+│
+├── Projects
+│
+├── General Chat
+├── Announcements
+└── Members
+```
+
+---
+
+# Team System
+
+Teams group users who commonly work together.
+
+Example:
+
+```text
+Team Alpha
+
+Members:
+- Philip
+- John
+- Sarah
+- David
+
+Projects:
+- E-commerce Platform
+- AI Research
+```
+
+Teams can have their own:
+
+* Members
+* Projects
+* Communication channels
+* Activity
+
+---
+
+# Project System
+
+Projects represent actual work.
+
+A project contains:
+
+```text
 Project
--------
-_id
-workspaceId
-name
-description
-createdBy
-createdAt
-updatedAt
-40. Task Model
-Task
-----
-_id
-projectId
-columnId
-title
-description
-assignedTo
-createdBy
-position
-status
-priority
-dueDate
-tags
-createdAt
-updatedAt
-completedAt
+│
+├── Overview
+├── Tasks
+├── Members
+├── Files
+├── Discussions
+├── Activity
+├── Submissions
+└── Knowledge Base
+```
 
-The position field allows tasks to maintain their order within a Kanban column.
+Project information includes:
 
-41. Document Model
-Document
---------
-_id
-workspaceId
-projectId
-title
-content
-createdBy
-updatedBy
-createdAt
-updatedAt
-42. Message Model
-Message
--------
-_id
-workspaceId
-channelId
-userId
-content
-createdAt
-updatedAt
-43. Activity Model
-Activity
---------
-_id
-workspaceId
-userId
-action
-targetType
-targetId
-metadata
-createdAt
+* Name
+* Description
+* Project manager
+* Members
+* Start date
+* Deadline
+* Status
+* Progress
+* Tasks
+* Milestones
+* Activity
+* Deliverables
+
+---
+
+# Task Management
+
+Tasks represent units of work.
 
 Example:
 
-userId:
+```text
+Task:
+Research Effects of Artificial Intelligence on Education
+
+Assigned to:
 Philip
 
-action:
-TASK_MOVED
+Deadline:
+October 10
 
-targetType:
+Priority:
+High
+```
+
+A task contains:
+
+* Title
+* Description
+* Assignee
+* Collaborators
+* Priority
+* Deadline
+* Status
+* Subtasks
+* Attachments
+* Comments
+* Deliverable
+* Review
+* Activity
+
+---
+
+# Task Status Lifecycle
+
+A task can move through the following lifecycle:
+
+```text
+ASSIGNED
+    ↓
+IN_PROGRESS
+    ↓
+SUBMITTED
+    ↓
+UNDER_REVIEW
+    ↓
+ ┌─────────────────────┐
+ ↓                     ↓
+APPROVED        CHANGES_REQUESTED
+                       ↓
+                  IN_PROGRESS
+```
+
+A task can also be marked:
+
+```text
+BLOCKED
+```
+
+when the member cannot continue because of a dependency or external issue.
+
+---
+
+# Subtask and Progress System
+
+Subtasks break large tasks into measurable pieces.
+
+Example:
+
+```text
+Research AI in Education
+
+Subtasks:
+
+✓ Find 5 academic sources
+✓ Research benefits
+✓ Research disadvantages
+○ Research student effects
+○ Write report
+○ Add citations
+```
+
+Each subtask can optionally have a weight.
+
+Example:
+
+```text
+Find sources             10%
+Research benefits        15%
+Research disadvantages   15%
+Student effects          15%
+Write report             30%
+Add citations            15%
+                         ----
+                         100%
+```
+
+Task progress is calculated from completed subtask weights.
+
+```text
+Completed:
+10 + 15 + 15 = 40%
+
+Task Progress:
+40%
+```
+
+---
+
+# Deliverables and Review System
+
+Subtasks are primarily used for measuring work.
+
+They do not normally require separate formal submissions.
+
+The main task has a final deliverable.
+
+Example:
+
+```text
 Task
-
-targetId:
-12345
-
-metadata:
-{
-    from: "todo",
-    to: "in_progress"
-}
-44. API Architecture
-Authentication
-POST /api/auth/register
-POST /api/auth/login
-POST /api/auth/logout
-GET  /api/auth/me
-POST /api/auth/forgot-password
-POST /api/auth/reset-password
-Users
-GET   /api/users/me
-PATCH /api/users/me
-PATCH /api/users/me/password
-Workspaces
-POST   /api/workspaces
-GET    /api/workspaces
-GET    /api/workspaces/:id
-PATCH  /api/workspaces/:id
-DELETE /api/workspaces/:id
-Members
-GET    /api/workspaces/:id/members
-POST   /api/workspaces/:id/members
-PATCH  /api/workspaces/:id/members/:memberId
-DELETE /api/workspaces/:id/members/:memberId
-Projects
-POST   /api/workspaces/:workspaceId/projects
-GET    /api/workspaces/:workspaceId/projects
-GET    /api/projects/:id
-PATCH  /api/projects/:id
-DELETE /api/projects/:id
-Tasks
-POST   /api/projects/:projectId/tasks
-GET    /api/projects/:projectId/tasks
-GET    /api/tasks/:id
-PATCH  /api/tasks/:id
-DELETE /api/tasks/:id
-Comments
-POST   /api/tasks/:taskId/comments
-GET    /api/tasks/:taskId/comments
-DELETE /api/comments/:id
-Documents
-POST   /api/workspaces/:workspaceId/documents
-GET    /api/workspaces/:workspaceId/documents
-GET    /api/documents/:id
-PATCH  /api/documents/:id
-DELETE /api/documents/:id
-Messages
-GET  /api/workspaces/:workspaceId/channels
-POST /api/workspaces/:workspaceId/channels
-GET  /api/channels/:channelId/messages
-
-Messages themselves should primarily use Socket.io for real-time delivery while still being persisted through the backend.
-
-Notifications
-GET   /api/notifications
-PATCH /api/notifications/:id/read
-PATCH /api/notifications/read-all
-Analytics
-GET /api/workspaces/:id/analytics
-GET /api/projects/:id/analytics
-45. Socket.io Events
-
-Important events include:
-
-task:created
-task:updated
-task:moved
-task:deleted
-
-comment:created
-
-message:sent
-message:deleted
-
-notification:new
-
-user:online
-user:offline
-
-task:viewing
-task:stopped-viewing
-
-Example:
-
-Client
-  ↓
-task:moved
-
-Server
-  ↓
-Validate
-  ↓
-Update MongoDB
-  ↓
-Create Activity
-  ↓
-Broadcast
-
-task:moved
-  ↓
-All workspace members
-46. Security Architecture
-
-Security should be treated as a core feature.
-
-Password Security
-
-Use:
-
-bcrypt
-
-Never store raw passwords.
-
-Authentication
-
-Use:
-
-JWT
-
-stored through secure HttpOnly cookies.
-
-Authorization
-
-Every protected API request should verify:
-
-Is the user authenticated?
-        ↓
-Does the user belong to this workspace?
-        ↓
-Does their role allow this action?
-Input Validation
-
-Validate:
-
-email
-passwords
-task titles
-document content
-message content
-workspace names
-IDs
-File Upload Security
-
-Validate:
-
-file type
-file size
-filename
-upload permissions
-47. Error Handling
-
-The backend should have centralized error handling.
-
-Instead of every controller returning inconsistent responses, use a standard format.
-
-Example:
-
-{
-  "success": false,
-  "message": "You do not have permission to modify this task."
-}
-
-Successful responses:
-
-{
-  "success": true,
-  "data": {}
-}
-48. Loading States
-
-The frontend should never appear frozen while waiting for the backend.
-
-Use:
-
-Skeletons
-Spinners
-Loading indicators
-Disabled buttons
-Optimistic updates where appropriate
-
-Example:
-
-Creating task...
-
-[████████████]
-49. Empty States
-
-Every major page should handle having no data.
-
-Example:
-
-No projects yet.
-
-Create your first project to start organizing your work.
-
-[ + Create Project ]
-
-Instead of showing an empty white page.
-
-50. Responsive Design
-
-The platform should work on:
-
-Desktop
-Tablet
-Mobile
-
-Desktop can use:
-
-Sidebar + Main Content
-
-Mobile can use:
-
-Top Bar
-Bottom Navigation / Drawer
-
-The Kanban board should support horizontal scrolling on small screens.
-
-51. Technology Stack
-Frontend
-Next.js
-React
-JavaScript
-Tailwind CSS
-Lucide React
-Recharts
-dnd-kit
-Backend
-Node.js
-Express.js
-Socket.io
-JWT
-bcrypt
-Multer
-Database
-MongoDB
-Mongoose
-Development
-Git
-GitHub
-ESLint
-Postman
-52. Architecture Overview
-
-The complete system:
-
-                        USER
-                         │
-                         ▼
-              ┌────────────────────┐
-              │      Next.js       │
-              │                    │
-              │  React UI          │
-              │  Dashboard         │
-              │  Kanban            │
-              │  Documents         │
-              │  Chat              │
-              └─────────┬──────────┘
-                        │
-                 REST API / Socket.io
-                        │
-                        ▼
-              ┌────────────────────┐
-              │      Express       │
-              │                    │
-              │ Authentication     │
-              │ Authorization      │
-              │ Business Logic     │
-              │ REST API           │
-              │ File Uploads       │
-              │ Socket.io Gateway  │
-              └─────────┬──────────┘
-                        │
-                        ▼
-              ┌────────────────────┐
-              │      MongoDB       │
-              │                    │
-              │ Users              │
-              │ Workspaces         │
-              │ Projects           │
-              │ Tasks              │
-              │ Documents          │
-              │ Messages           │
-              │ Activities         │
-              └────────────────────┘
-53. Recommended Project Development Phases
-
-Do not attempt to build the entire application simultaneously.
-
-Phase 1 — Project Foundation
-
-Build:
-
-Next.js application
-Express server
-MongoDB connection
-Environment configuration
-Basic API communication
-Global UI layout
-Phase 2 — Authentication
-
-Build:
-
-Registration
-Login
-Logout
-JWT
-HttpOnly cookies
-bcrypt
-Protected routes
-User profile
-Phase 3 — Workspace
-
-Build:
-
-Create workspace
-List workspaces
-Workspace dashboard
-Members
-Roles
-Invitations
-Phase 4 — Projects & Tasks
-
-Build:
-
-Create project
-Create columns
-Create tasks
-Assign tasks
-Task details
-Status
-Priority
-Deadlines
-Tags
-Subtasks
-Phase 5 — Kanban
-
-Build:
-
-Drag and drop
-Task ordering
-Column movement
-Optimistic UI
-Backend persistence
-Phase 6 — Real-Time System
-
-Build:
-
-Socket.io
-Real-time task updates
-Real-time comments
-Presence
-Real-time notifications
-Phase 7 — Documents
-
-Build:
-
-Document creation
-Markdown editor
-Document editing
-Document organization
-Project documents
-Phase 8 — Communication
-
-Build:
-
-Channels
-Messages
-Real-time messaging
-Mentions
-Task comments
-Online presence
-Phase 9 — Files & Notifications
-
-Build:
-
-File uploads
-Attachments
-Notification center
-Deadline notifications
-Assignment notifications
-Phase 10 — Analytics
-
-Build:
-
-Project completion
-Task statistics
-Activity statistics
-Overdue tasks
-Completion trends
-Charts
-Phase 11 — Security & Quality
-
-Test:
-
-Authentication
-Authorization
-Input validation
-File uploads
-API errors
-Permission boundaries
-Socket permissions
-Mobile responsiveness
-Phase 12 — Deployment
-
-Deploy:
-
-Next.js
-     ↓
-Vercel
-
-Express
-     ↓
-Render / Railway / similar service
-
-MongoDB
-     ↓
-MongoDB Atlas
-
-Environment variables should be configured separately for development and production.
-
-54. Example Real-World Scenario
-
-A university team is developing a final-year project.
-
-They create:
-
-Workspace:
-Final Year Project Team
-
-Project:
-Hospital Management System
-
-They create tasks:
-
-Design Database
-Build Authentication
-Create Patient Dashboard
-Build Appointment API
-Write Documentation
-Prepare Presentation
-
-Each task gets assigned to a member.
-
-Example:
-
-Build Authentication
-Assigned to: Philip
-Priority: High
-Due: September 25
-Status: In Progress
-
-Philip moves it to Review.
-
-The project supervisor sees the update.
-
-Philip adds:
-
-authentication-flow.pdf
-
-to the task.
-
-Another member comments:
-
-Please add password reset functionality.
-
-Philip receives a notification.
-
-Once completed:
-
-IN PROGRESS
-      ↓
-REVIEW
-      ↓
-DONE
-
-The analytics dashboard updates automatically.
-
-55. Graduation Presentation Demo
-
-The most impressive demonstration should involve two browser windows.
-
-Browser A
-
-Login as:
-
-Philip
-Admin
-Browser B
-
-Login as:
-
-Sarah
+│
+├── Subtasks
+│   ├── Find sources
+│   ├── Research benefits
+│   ├── Research disadvantages
+│   ├── Write report
+│   └── Add citations
+│
+└── Final Deliverable
+    └── AI-Education-Research.pdf
+```
+
+The member clicks:
+
+```text
+Submit for Review
+```
+
+The Project Manager receives the submission.
+
+---
+
+# Review Workflow
+
+```text
 Member
+  ↓
+Completes Work
+  ↓
+Uploads Deliverable
+  ↓
+Submit for Review
+  ↓
+Project Manager
+  ↓
+Under Review
+  ↓
+ ┌─────────────────┐
+ ↓                 ↓
+Approve       Request Changes
+```
 
-Both enter:
+When changes are requested:
 
-Acme Development
-→ Website Redesign
-→ Board
+```text
+Changes Requested
+        ↓
+Member Updates Work
+        ↓
+New Submission
+        ↓
+Under Review
+```
 
-Philip moves:
+The frontend should support submission versions so that previous submissions are not lost.
 
-Build Authentication
+---
 
-from:
+# Project Communication
 
-TO DO
+Each project can have a dedicated discussion area.
 
-to:
+Example:
 
-IN PROGRESS
+```text
+Project Discussion
 
-Sarah's browser immediately updates.
+Philip:
+I've uploaded the first version of the research.
 
-No refresh.
+Sarah:
+I'll review the sources.
 
-Then Sarah opens the task and comments:
+John:
+Section 3 needs more information.
+```
 
-Authentication API is ready for testing.
+Comments can be attached to:
 
-Philip immediately sees the comment.
+* Projects
+* Tasks
+* Deliverables
+* Reviews
 
-Sarah uploads:
+---
 
-authentication-flow.pdf
+# Workspace Communication
 
-Philip can see the attachment.
+Workspace-wide communication is separate from project access.
 
-Sarah marks the task:
+Example:
 
-REVIEW
+```text
+Workspace Chat
 
-Philip approves it:
+# general
+# announcements
+# project-help
+# random
+```
 
-DONE
+Users from different teams can communicate here without automatically receiving access to each other's private projects.
 
-The analytics dashboard updates:
+---
 
-Completed Tasks: 21 → 22
+# Direct Messaging
 
-This single demonstration showcases:
+Users can communicate privately.
 
-React
-Next.js
-Express
-REST API
-MongoDB
-Authentication
-Authorization
-Socket.io
-Real-time state
-File uploads
-Notifications
-Analytics
-56. What Makes This a Strong Web2 Graduation Project
+```text
+Messages
+│
+├── Philip
+├── Sarah
+├── John
+└── David
+```
 
-The project demonstrates more than frontend CRUD.
+Direct messaging does not grant project permissions.
 
-It includes:
+For example:
 
-Frontend Engineering
-React
-Next.js
-Client/server rendering
-State management
-Responsive UI
-Drag-and-drop
-Forms
-Data visualization
-Backend Engineering
-Express
-REST APIs
-Controllers
-Services
-Middleware
-Authentication
-Authorization
-File handling
-Error handling
-Database Engineering
-MongoDB
-Relationships
-Data modeling
-Querying
-Indexing
-Activity history
-Real-Time Engineering
-WebSockets
-Socket.io
-Presence
-Live updates
-Real-time notifications
-Security
+```text
+Philip → David
+
+"Can you help review our UI?"
+```
+
+David can respond without automatically seeing Philip's project.
+
+---
+
+# Notifications
+
+Nexus provides real-time notifications.
+
+Examples:
+
+```text
+You were assigned a task.
+
+Sarah commented on your task.
+
+Your submission was approved.
+
+Changes were requested on your submission.
+
+Your task deadline is tomorrow.
+
+You were invited to a project.
+```
+
+Notification categories:
+
+* Task assignment
+* Task status
+* Comments
+* Mentions
+* Submissions
+* Reviews
+* Project invitations
+* Messages
+* Deadlines
+
+---
+
+# Activity Tracking
+
+Nexus records meaningful actions.
+
+Example activity timeline:
+
+```text
+10:30 AM
+Philip started "Research AI in Education"
+
+11:10 AM
+Philip completed "Find 5 sources"
+
+11:25 AM
+Philip uploaded research.pdf
+
+12:00 PM
+Sarah commented on the task
+
+1:30 PM
+Philip submitted the task for review
+
+2:00 PM
+John approved the submission
+```
+
+The activity system records actions inside Nexus.
+
+It does not monitor:
+
+* Mouse movement
+* Keyboard activity
+* Other applications
+* Browser activity
+* Personal computer activity
+
+---
+
+# Project Knowledge Base
+
+Approved project deliverables can become part of the project's knowledge base.
+
+Example:
+
+```text
+Knowledge Base
+
+Research
+├── AI in Education
+├── Market Analysis
+└── Competitor Research
+
+Documents
+├── Project Proposal
+├── Requirements
+└── Final Report
+
+Resources
+├── Academic Papers
+└── Reference Links
+```
+
+Only approved content should automatically enter the official knowledge base.
+
+---
+
+# Dashboard
+
+The main dashboard gives users an overview of their work.
+
+Example:
+
+```text
+Good morning, Philip
+
+My Tasks
+──────────────
+12 Total
+5 In Progress
+4 Completed
+2 Under Review
+1 Overdue
+
+Project Progress
+─────────────────
+AI Research       72%
+E-commerce        45%
+Healthcare App    88%
+
+Upcoming Deadlines
+──────────────────
+Research Report    Tomorrow
+UI Design          Friday
+Final Presentation Next Week
+```
+
+---
+
+# Project Dashboard
+
+A project manager can see:
+
+```text
+Project Progress        72%
+
+Tasks
+─────
+Total              25
+Completed          12
+In Progress         7
+Under Review        3
+Blocked             2
+Not Started         1
+
+Submissions
+───────────
+Pending Review      3
+Approved            8
+Changes Requested   2
+
+Team Workload
+─────────────
+Philip              5 tasks
+Sarah               3 tasks
+John                7 tasks
+```
+
+---
+
+# Analytics
+
+Nexus can provide:
+
+### Project Progress
+
+```text
+Completed Tasks
+───────────────
+████████████░░░ 72%
+```
+
+### Task Distribution
+
+```text
+Completed
+In Progress
+Under Review
+Blocked
+Not Started
+```
+
+### Team Workload
+
+Displays how much assigned work each member has.
+
+### Deadline Monitoring
+
+Shows:
+
+* Upcoming
+* Due today
+* Overdue
+* At risk
+
+### Submission Analytics
+
+Shows:
+
+* Submitted
+* Approved
+* Pending review
+* Changes requested
+
+---
+
+# Authentication
+
+The frontend provides:
+
+```text
+/register
+/login
+/forgot-password
+/reset-password
+```
+
+Authentication uses JWT-based sessions.
+
+After successful login:
+
+```text
+User
+ ↓
+Backend
+ ↓
 JWT
-HttpOnly cookies
-bcrypt
-Role-based access control
-Input validation
-57. MVP vs Advanced Features
+ ↓
+Frontend session
+ ↓
+Protected dashboard
+```
 
-The project should have a clearly defined MVP.
+Protected routes redirect unauthenticated users to the login page.
 
-MVP
-Authentication
-Workspace
-Members
-Projects
-Kanban
-Tasks
-Assignments
-Comments
-Documents
-Messages
-Socket.io
-Notifications
-Activity
-Advanced
-File uploads
-Advanced analytics
-Global search
-Mentions
-Presence
-Rich text editing
-Task dependencies
-Recurring tasks
-Calendar view
-Email notifications
-Dark mode
+---
 
-Do not allow advanced features to delay completion of the core product.
+# Frontend Routing
 
-58. Final Product Structure
+Recommended App Router structure:
 
-At completion, the application should feel like:
-
-                     WORKSPACE
-                         │
-       ┌─────────────────┼─────────────────┐
-       │                 │                 │
-       ▼                 ▼                 ▼
-     MANAGE           DOCUMENT          COMMUNICATE
-       │                 │                 │
-       ▼                 ▼                 ▼
-    Projects          Documents         Channels
-    Tasks             Notes             Messages
-    Boards            Research          Comments
-    Deadlines         Files             Mentions
-    Assignments       Knowledge         Presence
-       │                 │                 │
-       └─────────────────┼─────────────────┘
-                         │
-                         ▼
-                   REAL-TIME CORE
-                         │
-                         ▼
-                    Socket.io
-                         │
-                         ▼
-                     MongoDB
-59. Project Goal
-
-The final objective is to build a production-style Web2 collaboration platform, not merely a collection of CRUD pages.
-
-The application should demonstrate that a team can:
-
-Create a workspace.
-Invite members.
-Create projects.
-Break projects into tasks.
-Assign tasks.
-Track task progress.
-Collaborate through comments and messages.
-Store project documentation.
-Upload and share files.
-Receive notifications.
-See activity history.
-Collaborate in real time.
-Monitor project progress through analytics.
-
-The central product philosophy is:
-
-Manage the work. Document the knowledge. Communicate with the team — all inside one connected workspace.
-
-60. Recommended Final Navigation
-Global
-🏠 Home
-📋 My Tasks
-💬 Messages
-🔔 Notifications
-🏢 Workspaces
-⚙ Settings
-Workspace
-Overview
-Projects
-Tasks
-Documents
-Messages
-Files
-Members
-Project
-Overview
-Board
-Tasks
-Documents
-Activity
-
-This structure keeps the application powerful without making the interface overwhelming.
-
-This would be the master specification I'd use before you start coding. The next useful step is to turn this README into a database schema + exact Mongoose models + complete API contract, because that will give you the backend blueprint you can build against rather than making database decisions while coding.
-
-
-
-
-
-
-
-
-
-1. Main application structure
-
-I'd organize it like this:
-
+```text
 app/
 │
-├── page.js                         # Landing page
+├── page.js
 │
 ├── login/
 │   └── page.js
@@ -1865,458 +980,2637 @@ app/
 │   └── page.js
 │
 ├── dashboard/
-│   └── page.js                     # Personal overview
-│
-├── workspaces/
-│   ├── page.js                     # All workspaces
-│   │
-│   └── [workspaceId]/
-│       ├── page.js                 # Workspace overview
-│       │
-│       ├── projects/
-│       │   ├── page.js             # Projects
-│       │   │
-│       │   └── [projectId]/
-│       │       ├── page.js         # Project overview
-│       │       ├── board/
-│       │       │   └── page.js     # Kanban
-│       │       ├── tasks/
-│       │       │   └── page.js     # Task list
-│       │       ├── documents/
-│       │       │   └── page.js     # Notion-like docs
-│       │       └── activity/
-│       │           └── page.js
-│       │
-│       ├── messages/
-│       │   └── page.js             # Slack-like communication
-│       │
-│       ├── members/
-│       │   └── page.js
-│       │
-│       ├── files/
-│       │   └── page.js
-│       │
-│       └── settings/
-│           └── page.js
-│
-├── notifications/
 │   └── page.js
+│
+├── workspace/
+│   └── [workspaceId]/
+│       │
+│       ├── page.js
+│       │
+│       ├── teams/
+│       ├── projects/
+│       ├── messages/
+│       ├── notifications/
+│       └── settings/
+│
+├── projects/
+│   └── [projectId]/
+│       │
+│       ├── page.js
+│       ├── tasks/
+│       ├── submissions/
+│       ├── files/
+│       ├── activity/
+│       ├── discussions/
+│       └── knowledge-base/
 │
 └── settings/
     └── page.js
+```
 
-But I wouldn't put every one of those pages directly in the main navigation.
+---
 
-2. Main sidebar
+# Component Structure
 
-I'd make the main sidebar approximately:
+Reusable components should be organized by responsibility.
 
-┌──────────────────────────┐
-│ 🚀 WorkSpace             │
-│                          │
-│ 🏠 Home                  │
-│ 📋 My Tasks              │
-│ 💬 Messages              │
-│ 🔔 Notifications         │
-│                          │
-│ WORKSPACES               │
-│                          │
-│ 🏢 Acme Team             │
-│ 🎓 University Project    │
-│ 📣 Marketing             │
-│                          │
-│ ───────────────────────  │
-│ ⚙ Settings               │
-│ 👤 Profile               │
-└──────────────────────────┘
+```text
+components/
+│
+├── ui/
+│   ├── Button
+│   ├── Modal
+│   ├── Input
+│   ├── Dropdown
+│   ├── Badge
+│   └── Avatar
+│
+├── layout/
+│   ├── Sidebar
+│   ├── Header
+│   └── WorkspaceSwitcher
+│
+├── dashboard/
+│   ├── StatsCard
+│   ├── ProgressCard
+│   └── TaskOverview
+│
+├── projects/
+│   ├── ProjectCard
+│   ├── ProjectHeader
+│   ├── ProjectProgress
+│   └── ProjectMembers
+│
+├── tasks/
+│   ├── TaskCard
+│   ├── TaskDetails
+│   ├── SubtaskList
+│   ├── TaskComments
+│   └── TaskActivity
+│
+├── submissions/
+│   ├── SubmissionCard
+│   ├── SubmissionViewer
+│   └── ReviewPanel
+│
+├── chat/
+│   ├── ChatWindow
+│   ├── MessageList
+│   └── MessageInput
+│
+└── notifications/
+    └── NotificationList
+```
 
-So the global navigation only has about 6–8 items.
+---
 
-That's much cleaner.
+# State Management
 
-3. Home
+Client state may include:
 
-The Home page is the user's personal dashboard.
+* Current user
+* Current workspace
+* Current project
+* Notifications
+* Messages
+* UI state
+* Modal state
+* Filters
+* Search state
+
+Server state includes:
+
+* Projects
+* Tasks
+* Subtasks
+* Members
+* Comments
+* Submissions
+* Activity
+* Analytics
+
+The frontend should avoid duplicating server state unnecessarily.
+
+---
+
+# API Communication
+
+The frontend communicates with the Express backend using REST APIs.
+
+Example:
+
+```text
+GET /api/projects
+GET /api/projects/:id
+POST /api/projects
+PATCH /api/projects/:id
+DELETE /api/projects/:id
+```
+
+Tasks:
+
+```text
+GET /api/tasks
+POST /api/tasks
+PATCH /api/tasks/:id
+DELETE /api/tasks/:id
+```
+
+Subtasks:
+
+```text
+POST /api/tasks/:taskId/subtasks
+PATCH /api/subtasks/:id
+DELETE /api/subtasks/:id
+```
+
+Submissions:
+
+```text
+POST /api/tasks/:taskId/submissions
+GET /api/tasks/:taskId/submissions
+POST /api/submissions/:id/review
+```
+
+---
+
+# Error Handling
+
+The frontend should display useful error states.
+
+Examples:
+
+```text
+Unable to load project.
+
+Try again
+```
+
+or:
+
+```text
+You don't have permission to access this project.
+```
+
+or:
+
+```text
+File upload failed.
+Please try again.
+```
+
+Avoid exposing raw backend errors directly to users.
+
+---
+
+# Loading States
+
+Every asynchronous operation should have a loading state.
+
+Examples:
+
+```text
+Loading project...
+
+Uploading document...
+
+Submitting for review...
+
+Saving changes...
+
+Sending message...
+```
+
+Skeleton loaders should be used for major page content where appropriate.
+
+---
+
+# Responsive Design
+
+Nexus should support:
+
+* Desktop
+* Laptop
+* Tablet
+* Mobile
+
+The primary workspace experience is optimized for desktop because project management involves dashboards, tables, task boards, and file management.
+
+Mobile should still support:
+
+* Viewing tasks
+* Updating task status
+* Completing subtasks
+* Comments
+* Notifications
+* Messaging
+* Basic project monitoring
+
+---
+
+# Security Considerations
+
+Frontend security features include:
+
+* Protected routes
+* Permission-aware UI
+* Secure API communication
+* Input validation
+* Safe file upload interfaces
+* Session expiration handling
+* Logout
+* Error handling
+
+However:
+
+> Frontend permissions are only for user experience. The backend must independently enforce every permission.
+
+Never rely on:
+
+```javascript
+if (user.role === "admin") {
+   // security-sensitive action
+}
+```
+
+as the actual security mechanism.
+
+The backend must verify the user's role and project membership.
+
+---
+
+# Environment Variables
+
+Example:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:5000/api
+NEXT_PUBLIC_SOCKET_URL=http://localhost:5000
+```
+
+Production:
+
+```env
+NEXT_PUBLIC_API_URL=https://api.example.com/api
+NEXT_PUBLIC_SOCKET_URL=https://api.example.com
+```
+
+Never expose private backend secrets through `NEXT_PUBLIC_*` variables.
+
+---
+
+# Installation
+
+Clone the repository:
+
+```bash
+git clone <frontend-repository-url>
+cd nexus-frontend
+```
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Create:
+
+```text
+.env.local
+```
+
+Add the required environment variables.
+
+Start development:
+
+```bash
+npm run dev
+```
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+---
+
+# Production Build
+
+Create a production build:
+
+```bash
+npm run build
+```
+
+Run production:
+
+```bash
+npm start
+```
+
+---
+
+# Recommended Folder Structure
+
+```text
+nexus-frontend/
+│
+├── app/
+├── components/
+├── hooks/
+├── lib/
+├── services/
+├── context/
+├── utils/
+├── public/
+├── styles/
+│
+├── .env.local
+├── package.json
+├── next.config.mjs
+└── README.md
+```
+
+---
+
+# Development Principles
+
+### 1. Keep components reusable
+
+Avoid putting the entire application inside one page component.
+
+### 2. Keep API logic separate
+
+API requests should be placed inside services or dedicated API utilities.
+
+### 3. Keep permissions explicit
+
+The UI should clearly communicate what a user can and cannot do.
+
+### 4. Preserve server authority
+
+Never treat frontend checks as security.
+
+### 5. Give users feedback
+
+Every important action should provide:
+
+* Loading state
+* Success state
+* Error state
+
+### 6. Make real-time updates predictable
+
+When another user changes a project, task, comment, or message, connected users should receive the appropriate update.
+
+---
+
+# Future Improvements
+
+Possible future frontend features include:
+
+* Drag-and-drop Kanban boards
+* Calendar view
+* Gantt charts
+* Advanced project analytics
+* Global search
+* Command palette
+* Rich text editor
+* Document preview
+* File version comparison
+* Mentions
+* Reactions
+* Voice/video meetings
+* AI project summaries
+* AI task suggestions
+* Advanced reporting
+* Custom dashboards
+
+---
+
+# Project Philosophy
+
+Nexus is not intended to be only a task manager.
+
+It is designed around the complete project lifecycle:
+
+```text
+PLAN
+ ↓
+ASSIGN
+ ↓
+EXECUTE
+ ↓
+TRACK
+ ↓
+SUBMIT
+ ↓
+REVIEW
+ ↓
+APPROVE
+ ↓
+DOCUMENT
+ ↓
+COMMUNICATE
+```
+
+The frontend provides the interface that makes this workflow visible and usable to every participant in a project.
+
+
+
+
+
+
+
+
+
+
+
+2. Backend README — nexus-backend/README.md
+
+
+# Nexus — Backend
+
+> RESTful API and real-time collaboration backend for the Nexus project management and collaborative workspace platform.
+
+The Nexus backend provides authentication, authorization, workspace management, team management, project management, task execution, progress tracking, file submissions, reviews, notifications, messaging, activity tracking, analytics, and real-time communication.
+
+The backend is built with Express.js and is responsible for all business logic, data validation, security, authorization, persistence, and real-time event processing.
+
+---
+
+# Table of Contents
+
+* [Overview](#overview)
+* [Backend Responsibilities](#backend-responsibilities)
+* [Technology Stack](#technology-stack)
+* [Architecture](#architecture)
+* [Core Domain Model](#core-domain-model)
+* [Authentication](#authentication)
+* [Authorization](#authorization)
+* [Workspace Management](#workspace-management)
+* [Team Management](#team-management)
+* [Project Management](#project-management)
+* [Task Management](#task-management)
+* [Subtask System](#subtask-system)
+* [Progress Calculation](#progress-calculation)
+* [Deliverable System](#deliverable-system)
+* [Review System](#review-system)
+* [Activity Logging](#activity-logging)
+* [Comments](#comments)
+* [Notifications](#notifications)
+* [Messaging](#messaging)
+* [Real-Time Architecture](#real-time-architecture)
+* [File Management](#file-management)
+* [Project Knowledge Base](#project-knowledge-base)
+* [Analytics](#analytics)
+* [Search](#search)
+* [Database Design](#database-design)
+* [API Structure](#api-structure)
+* [API Endpoints](#api-endpoints)
+* [Middleware](#middleware)
+* [Validation](#validation)
+* [Error Handling](#error-handling)
+* [Security](#security)
+* [Environment Variables](#environment-variables)
+* [Installation](#installation)
+* [Development](#development)
+* [Production](#production)
+* [Recommended Folder Structure](#recommended-folder-structure)
+* [API Response Format](#api-response-format)
+* [Development Principles](#development-principles)
+* [Future Improvements](#future-improvements)
+
+---
+
+# Overview
+
+Nexus is a collaborative workspace platform that allows multiple teams to work on multiple projects while maintaining controlled access to project information.
+
+The backend manages the relationship between:
+
+```text
+Users
+ ↓
+Workspaces
+ ↓
+Teams
+ ↓
+Projects
+ ↓
+Tasks
+ ↓
+Subtasks
+ ↓
+Deliverables
+ ↓
+Reviews
+```
+
+It also manages:
+
+```text
+Comments
+Messages
+Notifications
+Activity Logs
+Attachments
+Analytics
+```
+
+---
+
+# Backend Responsibilities
+
+The backend is responsible for:
+
+* User registration
+* Login
+* Password hashing
+* JWT authentication
+* Role-based authorization
+* Workspace management
+* Team management
+* Project management
+* Project membership
+* Task assignment
+* Subtask management
+* Progress calculation
+* File uploads
+* Deliverable submissions
+* Review workflow
+* Comments
+* Activity logs
+* Notifications
+* Direct messages
+* Workspace channels
+* Real-time events
+* Analytics
+* Search
+* Database operations
+* Security
+* Error handling
+
+---
+
+# Technology Stack
+
+| Technology                         | Purpose                   |
+| ---------------------------------- | ------------------------- |
+| Node.js                            | Runtime                   |
+| Express.js                         | HTTP framework            |
+| PostgreSQL                         | Relational database       |
+| Prisma / Sequelize                 | ORM                       |
+| JWT                                | Authentication            |
+| bcrypt                             | Password hashing          |
+| Zod                                | Validation                |
+| Socket.IO                          | Real-time communication   |
+| Multer                             | File upload handling      |
+| Cloudinary / S3-compatible storage | File storage              |
+| dotenv                             | Environment configuration |
+| Helmet                             | Security headers          |
+| CORS                               | Cross-origin access       |
+| express-rate-limit                 | Rate limiting             |
+
+---
+
+# Architecture
+
+The backend follows a layered architecture:
+
+```text
+Client
+  ↓
+Routes
+  ↓
+Middleware
+  ↓
+Controllers
+  ↓
+Services
+  ↓
+Database
+```
 
 For example:
 
-Good morning, Philip 👋
+```text
+POST /api/tasks
+       ↓
+Authentication Middleware
+       ↓
+Authorization Middleware
+       ↓
+Validation Middleware
+       ↓
+Task Controller
+       ↓
+Task Service
+       ↓
+Database
+       ↓
+Response
+```
 
-Here's what's happening today.
+---
 
-┌──────────┐ ┌──────────┐ ┌──────────┐
-│ 12       │ │ 5        │ │ 3        │
-│ My Tasks │ │ Due Soon │ │ Overdue  │
-└──────────┘ └──────────┘ └──────────┘
+# Core Domain Model
 
+The main entities are:
 
-My Tasks
+```text
+User
+Workspace
+WorkspaceMember
+Team
+TeamMember
+Project
+ProjectMember
+Task
+TaskAssignee
+Subtask
+Submission
+Review
+Attachment
+Comment
+ActivityLog
+Notification
+Conversation
+Message
+Channel
+KnowledgeBaseDocument
+```
 
-┌──────────────────────────────────────┐
-│ Build authentication       In Progress│
-│ Due today                            │
-├──────────────────────────────────────┤
-│ Design homepage             Review   │
-│ Due tomorrow                        │
-└──────────────────────────────────────┘
+---
 
+# Authentication
 
-Recent Activity
+Nexus uses JWT-based authentication.
 
-Philip completed "Database setup"
-Sarah commented on "Homepage design"
-John created "Payment API"
+Authentication flow:
 
-This gives the user an immediate overview without entering a workspace.
+```text
+User
+ ↓
+Register/Login
+ ↓
+Express API
+ ↓
+Validate credentials
+ ↓
+Generate JWT
+ ↓
+Client
+```
 
-4. My Tasks
+For protected requests:
 
-This is extremely useful.
+```text
+Client
+ ↓
+Authorization: Bearer <token>
+ ↓
+Auth Middleware
+ ↓
+Verify JWT
+ ↓
+Attach user to req.user
+ ↓
+Controller
+```
 
-Instead of forcing someone to enter every workspace to find their tasks:
+Example:
 
-MY TASKS
+```http
+Authorization: Bearer eyJhbGciOi...
+```
 
-All       To Do       In Progress       Done
+---
 
-─────────────────────────────────────────
+# Password Security
 
-Build Authentication
-Workspace: MediConnect
-Due: Today
-Priority: High
+Passwords must never be stored as plain text.
 
-Design Homepage
-Workspace: Website Redesign
-Due: Tomorrow
-Priority: Medium
+Registration:
 
-This answers:
+```text
+Password
+   ↓
+bcrypt
+   ↓
+Password Hash
+   ↓
+Database
+```
 
-"What do I need to work on?"
+Login:
 
-5. Messages
+```text
+Password
+   ↓
+bcrypt.compare()
+   ↓
+Stored Hash
+   ↓
+Authentication Result
+```
 
-This is your Slack-inspired area.
+---
 
-I'd make it look something like:
+# Authorization
 
-┌───────────────┬────────────────────────────┐
-│ Channels      │ # development              │
-│               │                            │
-│ # general     │ John:                     │
-│ # development │ API is ready for testing. │
-│ # design      │                            │
-│ # marketing   │ Sarah:                    │
-│               │ I'll test it now.         │
-│               │                            │
-│               │ [Type a message...]       │
-└───────────────┴────────────────────────────┘
+Authentication answers:
 
-This is where Socket.io becomes very visible.
+> Who are you?
 
-6. Workspace navigation
+Authorization answers:
 
-When you click:
+> What are you allowed to do?
 
-Acme Team
+Nexus uses role and resource-based authorization.
 
-the sidebar can transform into workspace-specific navigation.
+Example:
 
-ACME TEAM
+```text
+Workspace Owner
+    ↓
+Can manage workspace
 
-Overview
-Projects
-Tasks
-Documents
-Messages
-Files
-Members
+Project Manager
+    ↓
+Can manage project
 
-──────────────
+Member
+    ↓
+Can perform assigned work
 
-Settings
+Viewer
+    ↓
+Read-only
+```
 
-I'd recommend 7 workspace items:
+---
 
-1. Overview
+# Project-Level Authorization
 
-The workspace dashboard.
+Being a workspace member does not automatically give access to every project.
 
-Acme Team
+Example:
 
-12 Projects
-87 Tasks
-14 Members
+```text
+Workspace
+│
+├── Team Alpha
+│   └── Project A
+│
+└── Team Beta
+    └── Project B
+```
 
+A Team Beta user requesting:
+
+```http
+GET /api/projects/project-a
+```
+
+should receive:
+
+```http
+403 Forbidden
+```
+
+unless they are explicitly a member/collaborator of Project A or have a workspace-level administrative permission.
+
+---
+
+# Workspace Management
+
+Workspace functionality includes:
+
+* Create workspace
+* Update workspace
+* Delete workspace
+* Invite members
+* Remove members
+* Change member roles
+* List members
+* Create teams
+* Workspace settings
+
+Example:
+
+```http
+POST /api/workspaces
+GET /api/workspaces
+GET /api/workspaces/:id
+PATCH /api/workspaces/:id
+DELETE /api/workspaces/:id
+```
+
+---
+
+# Team Management
+
+Teams belong to workspaces.
+
+Example:
+
+```text
+Workspace
+│
+├── Team Alpha
+├── Team Beta
+└── Team Gamma
+```
+
+Operations:
+
+```http
+POST /api/workspaces/:workspaceId/teams
+GET /api/workspaces/:workspaceId/teams
+GET /api/teams/:teamId
+PATCH /api/teams/:teamId
+DELETE /api/teams/:teamId
+```
+
+Team members can be added or removed.
+
+---
+
+# Project Management
+
+Projects belong to workspaces and may be associated with teams.
+
+Project data includes:
+
+```text
+Project
+├── id
+├── workspace_id
+├── team_id
+├── name
+├── description
+├── manager_id
+├── status
+├── start_date
+├── deadline
+└── created_at
+```
+
+Operations:
+
+```http
+POST /api/projects
+GET /api/projects
+GET /api/projects/:id
+PATCH /api/projects/:id
+DELETE /api/projects/:id
+```
+
+---
+
+# Project Membership
+
+Projects have their own membership system.
+
+Example:
+
+```text
+Project Alpha
+
+Members:
+Philip       → Manager
+Sarah        → Member
+John         → Member
+David        → Collaborator
+```
+
+David could belong to another team while still having access to this specific project.
+
+This provides cross-team collaboration without exposing unrelated projects.
+
+---
+
+# Task Management
+
+Tasks represent units of work.
+
+Task fields may include:
+
+```text
+id
+project_id
+title
+description
+priority
+status
+due_date
+created_by
+created_at
+updated_at
+```
+
+Example endpoint:
+
+```http
+POST /api/projects/:projectId/tasks
+GET /api/projects/:projectId/tasks
+GET /api/tasks/:taskId
+PATCH /api/tasks/:taskId
+DELETE /api/tasks/:taskId
+```
+
+---
+
+# Task Status
+
+Recommended task states:
+
+```text
+ASSIGNED
+IN_PROGRESS
+SUBMITTED
+UNDER_REVIEW
+CHANGES_REQUESTED
+APPROVED
+BLOCKED
+```
+
+`OVERDUE` should normally be derived from the deadline rather than stored as a permanent status.
+
+Example:
+
+```text
+status = IN_PROGRESS
+due_date = yesterday
+```
+
+The API can return:
+
+```text
+is_overdue = true
+```
+
+---
+
+# Task Assignment
+
+A task can have:
+
+* Primary assignee
+* Collaborators
+
+Example:
+
+```text
+Task:
+Create Project Proposal
+
+Primary:
+Philip
+
+Collaborators:
+Sarah
+John
+```
+
+The backend verifies that assigned users have appropriate project access.
+
+---
+
+# Subtask System
+
+Subtasks break tasks into measurable work.
+
+Example:
+
+```text
+Task
+│
+├── Find sources
+├── Research benefits
+├── Research disadvantages
+├── Write report
+└── Add citations
+```
+
+Each subtask may contain:
+
+```text
+id
+task_id
+title
+description
+weight
+status
+assignee_id
+created_at
+completed_at
+```
+
+---
+
+# Progress Calculation
+
+Progress can be calculated using weighted subtasks.
+
+Example:
+
+```text
+Find sources             10%
+Benefits                 15%
+Disadvantages            15%
+Student effects          15%
+Write report             30%
+Citations                15%
+```
+
+Total:
+
+```text
+100%
+```
+
+If these are completed:
+
+```text
+Find sources
+Benefits
+Disadvantages
+```
+
+Progress:
+
+```text
+10 + 15 + 15 = 40%
+```
+
+The backend calculates and returns:
+
+```json
+{
+  "progress": 40
+}
+```
+
+---
+
+# Project Progress
+
+Project progress can be calculated from task progress.
+
+For more accurate reporting, tasks can also have weights.
+
+Example:
+
+```text
+Research             20%
+Backend              30%
+Frontend              30%
+Testing               10%
+Documentation         10%
+```
+
+The project progress is then calculated using the weighted task progress.
+
+This prevents five tiny tasks from having the same impact as one major task.
+
+---
+
+# Remaining Work
+
+The backend can expose:
+
+```text
+total_tasks
+completed_tasks
+in_progress_tasks
+remaining_tasks
+overdue_tasks
+```
+
+Example:
+
+```json
+{
+  "totalTasks": 20,
+  "completedTasks": 12,
+  "remainingTasks": 8
+}
+```
+
+Subtask-level remaining work can also be calculated.
+
+---
+
+# Deliverable System
+
+A deliverable represents the actual output of a task.
+
+Example:
+
+```text
+Task:
+Research AI in Education
+
+Deliverable:
+AI-Education-Research.pdf
+```
+
+A task can contain multiple submission versions.
+
+```text
+Submission v1
+   ↓
+Changes Requested
+   ↓
+Submission v2
+   ↓
+Approved
+```
+
+Previous versions should remain available for audit purposes.
+
+---
+
+# Submission Workflow
+
+```text
+IN_PROGRESS
+     ↓
+SUBMITTED
+     ↓
+UNDER_REVIEW
+     ↓
+ ┌───────────────┐
+ ↓               ↓
+APPROVED    CHANGES_REQUESTED
+                 ↓
+            IN_PROGRESS
+```
+
+The backend controls these transitions.
+
+Clients should not be able to arbitrarily change a task from:
+
+```text
+IN_PROGRESS
+```
+
+to:
+
+```text
+APPROVED
+```
+
+without satisfying the appropriate permission rules.
+
+---
+
+# Review System
+
+A review contains:
+
+```text
+submission_id
+reviewer_id
+decision
+feedback
+created_at
+```
+
+Possible decisions:
+
+```text
+APPROVED
+CHANGES_REQUESTED
+```
+
+Example:
+
+```json
+{
+  "decision": "CHANGES_REQUESTED",
+  "feedback": "Please add citations to sections 2 and 3."
+}
+```
+
+The review action generates:
+
+* Activity event
+* Notification
+* Status update
+* Real-time update
+
+---
+
+# Activity Logging
+
+The backend maintains an append-only activity log.
+
+Example:
+
+```text
+activity_logs
+
+id
+actor_id
+workspace_id
+project_id
+task_id
+event_type
+metadata
+created_at
+```
+
+Events can include:
+
+```text
+TASK_CREATED
+TASK_ASSIGNED
+TASK_STARTED
+SUBTASK_COMPLETED
+FILE_UPLOADED
+COMMENT_CREATED
+SUBMISSION_CREATED
+REVIEW_CREATED
+TASK_APPROVED
+CHANGES_REQUESTED
+PROJECT_CREATED
+MEMBER_INVITED
+```
+
+Example:
+
+```json
+{
+  "event": "SUBTASK_COMPLETED",
+  "actor": "Philip",
+  "task": "Research AI",
+  "subtask": "Find 5 academic sources"
+}
+```
+
+---
+
+# Comments
+
+Comments can belong to:
+
+* Projects
+* Tasks
+* Submissions
+* Discussions
+
+Example:
+
+```http
+POST /api/tasks/:taskId/comments
+GET /api/tasks/:taskId/comments
+PATCH /api/comments/:commentId
+DELETE /api/comments/:commentId
+```
+
+Comments can support:
+
+* Mentions
+* Replies
+* Editing
+* Deletion
+* Timestamps
+
+---
+
+# Notifications
+
+Notifications are generated by backend events.
+
+Examples:
+
+```text
+TASK_ASSIGNED
+COMMENT_MENTION
+SUBMISSION_RECEIVED
+REVIEW_COMPLETED
+CHANGES_REQUESTED
+PROJECT_INVITATION
+MESSAGE_RECEIVED
+DEADLINE_REMINDER
+```
+
+Notification structure:
+
+```text
+id
+user_id
+type
+title
+message
+resource_type
+resource_id
+read
+created_at
+```
+
+---
+
+# Messaging
+
+Nexus supports communication at multiple levels.
+
+## Workspace communication
+
+```text
+Workspace
+ ├── #general
+ ├── #announcements
+ └── #project-help
+```
+
+## Project communication
+
+```text
+Project
+ └── Project Discussion
+```
+
+## Direct messaging
+
+```text
+User A
+   ↕
+User B
+```
+
+Communication permissions are independent from project permissions.
+
+---
+
+# Real-Time Architecture
+
+Socket.IO handles real-time communication.
+
+The backend can emit events such as:
+
+```text
+task.updated
+task.created
+subtask.updated
+comment.created
+submission.created
+review.created
+notification.created
+message.created
+project.updated
+```
+
+Example:
+
+```text
+User A
+  │
+  │ completes subtask
+  ▼
+Express API
+  │
+  ├── Database update
+  │
+  ├── Activity log
+  │
+  └── Socket.IO event
+           │
+           ▼
+       User B
+           │
+           ▼
+    Dashboard updates
+```
+
+---
+
+# Socket Rooms
+
+Rooms can represent:
+
+```text
+workspace:<workspaceId>
+project:<projectId>
+task:<taskId>
+conversation:<conversationId>
+```
+
+Example:
+
+```javascript
+socket.join(`project:${projectId}`);
+```
+
+When a task changes:
+
+```javascript
+io.to(`project:${projectId}`).emit("task.updated", task);
+```
+
+Only users connected to that project room receive the event.
+
+---
+
+# File Management
+
+Files can be uploaded as:
+
+* Task attachments
+* Deliverables
+* Project documents
+* Knowledge-base documents
+
+The backend should validate:
+
+* File type
+* File size
+* User permission
+* Resource ownership/access
+
+Recommended storage:
+
+```text
+Application Server
+        ↓
+Object/File Storage
+        ↓
+Stored File URL
+        ↓
+Database
+```
+
+The database should store metadata rather than large binary files where possible.
+
+Example:
+
+```text
+attachments
+
+id
+uploaded_by
+project_id
+task_id
+file_name
+file_url
+file_type
+file_size
+created_at
+```
+
+---
+
+# Project Knowledge Base
+
+When a deliverable is approved, the backend can optionally create a knowledge-base entry.
+
+Example:
+
+```text
+Submission
+   ↓
+Approved
+   ↓
+Knowledge Base Document
+```
+
+This allows projects to maintain a reliable collection of approved information.
+
+---
+
+# Analytics
+
+The backend provides aggregated project statistics.
+
+Examples:
+
+```text
+Total Tasks
+Completed Tasks
+Remaining Tasks
+Overdue Tasks
+Blocked Tasks
 Project Progress
-Team Activity
-Upcoming Deadlines
-2. Projects
-Projects
+Submission Count
+Approval Rate
+Team Workload
+Activity Count
+```
 
-Website Redesign
-Mobile App
-Marketing Campaign
-Internal Tools
-3. Tasks
+Example:
 
-A centralized task list:
+```json
+{
+  "totalTasks": 25,
+  "completedTasks": 12,
+  "inProgressTasks": 7,
+  "underReview": 3,
+  "blocked": 2,
+  "remaining": 13,
+  "progress": 72
+}
+```
 
-All Tasks
+---
 
-Task              Assignee    Status
-──────────────────────────────────────
-Build API         John        In Progress
-Design Homepage   Sarah       Review
-Write Copy        Philip      Done
-4. Documents
+# Team Workload
 
-Your Notion-like section.
+Workload should not be measured simply by task count.
 
-Documents
+For example:
 
-📄 Project Requirements
-📄 Meeting Notes
-📄 API Documentation
-📄 Design Guidelines
-5. Messages
+```text
+Philip:
+2 large tasks
 
-Workspace channels:
+Sarah:
+8 small tasks
+```
 
-# general
-# development
-# design
-# marketing
-6. Files
+Counting tasks alone could make Sarah appear more overloaded even if Philip's two tasks contain significantly more work.
 
-All attachments in one place:
+Nexus can therefore use:
 
-Files
+* Task weights
+* Estimated effort
+* Subtask weights
+* Deadlines
 
-homepage.png
-requirements.pdf
-project-plan.pdf
-database-schema.png
-7. Members
-Members
+to provide a more useful workload representation.
 
-👤 Philip     Admin
-👤 Sarah      Member
-👤 John       Member
-👤 David      Viewer
-7. Projects shouldn't necessarily be in the main navbar
+---
 
-This is an important design decision.
+# Search
 
-Don't do:
+Global search can cover:
 
-Home
+```text
 Projects
 Tasks
-Boards
-Documents
-Messages
+Users
 Files
-Members
-Analytics
-...
+Comments
+Knowledge Base
+```
 
-as one giant sidebar.
+Example:
 
-Instead:
+```http
+GET /api/search?q=artificial+intelligence
+```
 
-Home
-My Tasks
-Messages
+Results should respect the user's permissions.
 
+A user must never receive search results for a private project they cannot access.
+
+---
+
+# Database Design
+
+Recommended relational database:
+
+**PostgreSQL**
+
+Core relationships:
+
+```text
+users
+  │
+  ├── workspace_members
+  │
+  ├── team_members
+  │
+  └── project_members
+
+workspaces
+  │
+  ├── teams
+  └── projects
+
+projects
+  │
+  ├── tasks
+  ├── project_members
+  ├── comments
+  ├── attachments
+  ├── activity_logs
+  └── knowledge_base_documents
+
+tasks
+  │
+  ├── subtasks
+  ├── assignees
+  ├── comments
+  ├── attachments
+  └── submissions
+
+submissions
+  │
+  └── reviews
+```
+
+---
+
+# Suggested Database Tables
+
+```text
+users
+workspaces
+workspace_members
+
+teams
+team_members
+
+projects
+project_members
+
+tasks
+task_assignees
+subtasks
+
+attachments
+submissions
+submission_files
+reviews
+
+comments
+comment_replies
+
+activity_logs
+
+notifications
+
+conversations
+conversation_members
+messages
+
+channels
+channel_members
+
+knowledge_base_documents
+```
+
+---
+
+# API Structure
+
+The REST API follows resource-based URLs.
+
+```text
+/api/auth
+/api/users
+/api/workspaces
+/api/teams
+/api/projects
+/api/tasks
+/api/subtasks
+/api/submissions
+/api/reviews
+/api/comments
+/api/notifications
+/api/messages
+/api/files
+/api/activity
+/api/search
+/api/analytics
+```
+
+---
+
+# Authentication Endpoints
+
+```http
+POST /api/auth/register
+POST /api/auth/login
+POST /api/auth/logout
+POST /api/auth/refresh
+POST /api/auth/forgot-password
+POST /api/auth/reset-password
+GET  /api/auth/me
+```
+
+---
+
+# Workspace Endpoints
+
+```http
+POST   /api/workspaces
+GET    /api/workspaces
+GET    /api/workspaces/:id
+PATCH  /api/workspaces/:id
+DELETE /api/workspaces/:id
+
+GET    /api/workspaces/:id/members
+POST   /api/workspaces/:id/members
+DELETE /api/workspaces/:id/members/:userId
+```
+
+---
+
+# Team Endpoints
+
+```http
+POST   /api/workspaces/:workspaceId/teams
+GET    /api/workspaces/:workspaceId/teams
+
+GET    /api/teams/:teamId
+PATCH  /api/teams/:teamId
+DELETE /api/teams/:teamId
+
+POST   /api/teams/:teamId/members
+DELETE /api/teams/:teamId/members/:userId
+```
+
+---
+
+# Project Endpoints
+
+```http
+POST   /api/projects
+GET    /api/projects
+GET    /api/projects/:id
+PATCH  /api/projects/:id
+DELETE /api/projects/:id
+```
+
+Members:
+
+```http
+GET    /api/projects/:id/members
+POST   /api/projects/:id/members
+DELETE /api/projects/:id/members/:userId
+```
+
+---
+
+# Task Endpoints
+
+```http
+POST   /api/projects/:projectId/tasks
+GET    /api/projects/:projectId/tasks
+
+GET    /api/tasks/:taskId
+PATCH  /api/tasks/:taskId
+DELETE /api/tasks/:taskId
+```
+
+Assignment:
+
+```http
+POST   /api/tasks/:taskId/assignees
+DELETE /api/tasks/:taskId/assignees/:userId
+```
+
+---
+
+# Subtask Endpoints
+
+```http
+POST   /api/tasks/:taskId/subtasks
+GET    /api/tasks/:taskId/subtasks
+
+PATCH  /api/subtasks/:subtaskId
+DELETE /api/subtasks/:subtaskId
+```
+
+---
+
+# Submission Endpoints
+
+```http
+POST /api/tasks/:taskId/submissions
+GET  /api/tasks/:taskId/submissions
+
+GET  /api/submissions/:submissionId
+```
+
+---
+
+# Review Endpoints
+
+```http
+POST /api/submissions/:submissionId/review
+GET  /api/submissions/:submissionId/reviews
+```
+
+---
+
+# Comment Endpoints
+
+```http
+GET    /api/tasks/:taskId/comments
+POST   /api/tasks/:taskId/comments
+
+PATCH  /api/comments/:commentId
+DELETE /api/comments/:commentId
+```
+
+---
+
+# Notification Endpoints
+
+```http
+GET   /api/notifications
+PATCH /api/notifications/:id/read
+PATCH /api/notifications/read-all
+```
+
+---
+
+# Messaging Endpoints
+
+```http
+GET  /api/conversations
+POST /api/conversations
+
+GET  /api/conversations/:id/messages
+POST /api/conversations/:id/messages
+```
+
+Real-time messages should primarily be delivered through Socket.IO while REST can be used for fetching historical messages.
+
+---
+
+# Activity Endpoints
+
+```http
+GET /api/projects/:projectId/activity
+GET /api/tasks/:taskId/activity
+GET /api/workspaces/:workspaceId/activity
+```
+
+---
+
+# Analytics Endpoints
+
+```http
+GET /api/projects/:projectId/analytics
+GET /api/workspaces/:workspaceId/analytics
+GET /api/teams/:teamId/analytics
+```
+
+---
+
+# Middleware
+
+Recommended middleware:
+
+```text
+auth.middleware.js
+role.middleware.js
+projectAccess.middleware.js
+workspaceAccess.middleware.js
+validate.middleware.js
+upload.middleware.js
+rateLimit.middleware.js
+error.middleware.js
+logger.middleware.js
+```
+
+---
+
+# Authentication Middleware
+
+Responsible for:
+
+1. Reading the Authorization header
+2. Extracting the JWT
+3. Verifying the token
+4. Identifying the user
+5. Attaching the user to `req.user`
+
+Example:
+
+```text
+Request
+  ↓
+Authorization Header
+  ↓
+JWT Verification
+  ↓
+req.user
+  ↓
+Next Middleware
+```
+
+---
+
+# Authorization Middleware
+
+Authorization checks whether the authenticated user has permission to perform an action.
+
+Example:
+
+```text
+Authenticated?
+     ↓
+   YES
+     ↓
+Project Member?
+     ↓
+   YES
+     ↓
+Correct Role?
+     ↓
+   YES
+     ↓
+Allow Request
+```
+
+---
+
+# Validation Middleware
+
+Request data should be validated before reaching business logic.
+
+For example:
+
+```text
+POST /api/tasks
+```
+
+may require:
+
+```text
+title
+description
+priority
+dueDate
+assignee
+```
+
+Invalid requests should return:
+
+```http
+400 Bad Request
+```
+
+with a structured error response.
+
+---
+
+# Rate Limiting
+
+Rate limiting controls how many requests a client can make within a specified period.
+
+Example:
+
+```text
+100 requests / 15 minutes
+```
+
+Authentication routes should generally have stricter limits than ordinary read operations.
+
+This helps reduce:
+
+* Brute-force attempts
+* API abuse
+* Excessive traffic
+* Accidental request floods
+
+---
+
+# Error Handling
+
+The backend should use centralized error handling.
+
+Example:
+
+```json
+{
+  "success": false,
+  "message": "Project not found"
+}
+```
+
+Common HTTP statuses:
+
+```text
+200 OK
+201 Created
+204 No Content
+400 Bad Request
+401 Unauthorized
+403 Forbidden
+404 Not Found
+409 Conflict
+422 Unprocessable Entity
+429 Too Many Requests
+500 Internal Server Error
+```
+
+---
+
+# Security
+
+The backend should implement:
+
+### Password security
+
+* bcrypt hashing
+* No plain-text passwords
+
+### Authentication
+
+* JWT
+* Token expiration
+* Secure session handling
+
+### Authorization
+
+* Role-based access
+* Resource-level access checks
+
+### Input validation
+
+* Zod
+* Sanitization where necessary
+
+### HTTP security
+
+* Helmet
+* CORS configuration
+
+### Rate limiting
+
+Protect sensitive endpoints.
+
+### File security
+
+Validate:
+
+* File type
+* File size
+* Upload permissions
+
+### Database security
+
+* Parameterized queries/ORM
+* Environment-based credentials
+* Least-privilege database access
+
+---
+
+# CORS
+
+The backend should only allow trusted frontend origins.
+
+Development:
+
+```env
+CLIENT_URL=http://localhost:3000
+```
+
+Production:
+
+```env
+CLIENT_URL=https://your-frontend-domain.com
+```
+
+CORS should not simply be configured as:
+
+```javascript
+origin: "*"
+```
+
+when authenticated requests are involved.
+
+---
+
+# Environment Variables
+
+Example:
+
+```env
+PORT=5000
+
+DATABASE_URL=postgresql://user:password@localhost:5432/nexus
+
+JWT_SECRET=your_secret
+JWT_EXPIRES_IN=7d
+
+SALT_ROUNDS=10
+
+CLIENT_URL=http://localhost:3000
+
+UPLOAD_MAX_SIZE=10485760
+```
+
+If using object storage:
+
+```env
+STORAGE_PROVIDER=cloudinary
+
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+```
+
+Socket configuration:
+
+```env
+SOCKET_CORS_ORIGIN=http://localhost:3000
+```
+
+Secrets must never be committed to Git.
+
+---
+
+# Installation
+
+Clone the repository:
+
+```bash
+git clone <backend-repository-url>
+cd nexus-backend
+```
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Create:
+
+```text
+.env
+```
+
+Configure the required environment variables.
+
+Run database migrations:
+
+```bash
+npm run migrate
+```
+
+Start development:
+
+```bash
+npm run dev
+```
+
+Server:
+
+```text
+http://localhost:5000
+```
+
+---
+
+# Production
+
+Build/start according to the project's Node.js deployment configuration.
+
+Example:
+
+```bash
+npm start
+```
+
+The production environment should provide:
+
+* Production database
+* Secure JWT secret
+* Production frontend URL
+* Secure file storage
+* HTTPS
+* Proper logging
+* Error monitoring
+
+---
+
+# Recommended Folder Structure
+
+```text
+nexus-backend/
+│
+├── src/
+│   │
+│   ├── config/
+│   │   ├── database.js
+│   │   └── environment.js
+│   │
+│   ├── controllers/
+│   │   ├── auth.controller.js
+│   │   ├── workspace.controller.js
+│   │   ├── team.controller.js
+│   │   ├── project.controller.js
+│   │   ├── task.controller.js
+│   │   ├── submission.controller.js
+│   │   ├── review.controller.js
+│   │   ├── message.controller.js
+│   │   └── notification.controller.js
+│   │
+│   ├── services/
+│   │   ├── auth.service.js
+│   │   ├── project.service.js
+│   │   ├── task.service.js
+│   │   ├── submission.service.js
+│   │   ├── notification.service.js
+│   │   └── analytics.service.js
+│   │
+│   ├── routes/
+│   │   ├── auth.routes.js
+│   │   ├── workspace.routes.js
+│   │   ├── team.routes.js
+│   │   ├── project.routes.js
+│   │   ├── task.routes.js
+│   │   ├── submission.routes.js
+│   │   ├── review.routes.js
+│   │   ├── message.routes.js
+│   │   └── notification.routes.js
+│   │
+│   ├── middleware/
+│   │   ├── auth.middleware.js
+│   │   ├── role.middleware.js
+│   │   ├── access.middleware.js
+│   │   ├── validate.middleware.js
+│   │   ├── upload.middleware.js
+│   │   ├── rateLimit.middleware.js
+│   │   └── error.middleware.js
+│   │
+│   ├── validators/
+│   │   ├── auth.validator.js
+│   │   ├── project.validator.js
+│   │   └── task.validator.js
+│   │
+│   ├── models/
+│   │
+│   ├── sockets/
+│   │   ├── index.js
+│   │   ├── project.socket.js
+│   │   ├── task.socket.js
+│   │   └── chat.socket.js
+│   │
+│   ├── utils/
+│   │
+│   ├── app.js
+│   └── server.js
+│
+├── migrations/
+├── tests/
+├── .env
+├── package.json
+└── README.md
+```
+
+---
+
+# API Response Format
+
+Successful response:
+
+```json
+{
+  "success": true,
+  "message": "Task created successfully",
+  "data": {
+    "id": "task_123",
+    "title": "Research AI"
+  }
+}
+```
+
+Error response:
+
+```json
+{
+  "success": false,
+  "message": "You do not have permission to access this project"
+}
+```
+
+Validation error:
+
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "errors": {
+    "title": "Title is required"
+  }
+}
+```
+
+---
+
+# Important Business Rules
+
+### Rule 1 — Workspace membership does not equal project membership
+
+A workspace user cannot automatically access every project.
+
+### Rule 2 — Project membership grants project access
+
+A user must be a project member, authorized collaborator, or authorized workspace administrator.
+
+### Rule 3 — Messaging does not grant project access
+
+Users can communicate without gaining access to private projects.
+
+### Rule 4 — Subtasks measure progress
+
+Subtasks generally do not require formal review.
+
+### Rule 5 — Deliverables are reviewed
+
+The main task deliverable goes through the submission/review workflow.
+
+### Rule 6 — Only authorized reviewers can approve work
+
+A regular member cannot approve their own submission.
+
+### Rule 7 — Activity is append-only
+
+Activity records should not be casually modified because they provide an audit trail.
+
+### Rule 8 — Backend controls authorization
+
+Frontend permission checks are not security controls.
+
+### Rule 9 — Search respects permissions
+
+A user must not discover private projects through search.
+
+### Rule 10 — Approved work can enter the knowledge base
+
+Approved deliverables can become official project documentation.
+
+---
+
+# Example Complete Workflow
+
+Consider a school project:
+
+```text
+Workspace:
+Blockfuse Student Workspace
+
+Team:
+Team Alpha
+
+Project:
+AI in Education Research
+```
+
+The Project Manager creates:
+
+```text
+Task:
+Research Effects of AI on Education
+```
+
+The task is assigned to Philip.
+
+Philip receives:
+
+```text
+Notification:
+You have been assigned a new task.
+```
+
+Philip starts the task.
+
+The backend records:
+
+```text
+TASK_STARTED
+```
+
+Philip completes:
+
+```text
+✓ Find 5 academic sources
+✓ Research benefits
+✓ Research disadvantages
+```
+
+The backend updates the progress.
+
+```text
+Progress: 40%
+```
+
+Philip uploads:
+
+```text
+ai-research.pdf
+```
+
+The backend records:
+
+```text
+FILE_UPLOADED
+```
+
+Philip completes the remaining subtasks.
+
+```text
+Progress: 100%
+```
+
+Philip submits the deliverable.
+
+```text
+SUBMITTED
+```
+
+The Project Manager receives:
+
+```text
+Notification:
+Philip submitted "Research Effects of AI on Education".
+```
+
+The manager reviews the document.
+
+If changes are needed:
+
+```text
+CHANGES_REQUESTED
+```
+
+Feedback:
+
+```text
+"Please add citations to sections 2 and 3."
+```
+
+Philip updates the document and submits version 2.
+
+The manager approves it.
+
+```text
+APPROVED
+```
+
+The backend:
+
+```text
+Updates task
+Creates review
+Creates activity log
+Creates notification
+Emits Socket.IO event
+Optionally creates knowledge-base document
+```
+
+The project dashboard updates in real time.
+
+---
+
+# Development Principles
+
+### Separation of concerns
+
+Routes should define endpoints.
+
+Controllers should handle HTTP requests.
+
+Services should contain business logic.
+
+Models/database layer should handle persistence.
+
+Middleware should handle cross-cutting concerns.
+
+---
+
+### Backend authority
+
+Never trust the client.
+
+The client can send:
+
+```json
+{
+  "role": "OWNER"
+}
+```
+
+but the backend must determine whether the authenticated user is actually allowed to perform the operation.
+
+---
+
+### Resource-level authorization
+
+Don't only check:
+
+```text
+Is the user logged in?
+```
+
+Also check:
+
+```text
+Does the user belong to this workspace?
+
+Does the user have access to this project?
+
+Can this role perform this action?
+```
+
+---
+
+### Transactions
+
+Operations involving multiple database changes should use database transactions where appropriate.
+
+For example, approving a submission may involve:
+
+```text
+Update submission
+       +
+Update task
+       +
+Create review
+       +
+Create activity
+       +
+Create notification
+```
+
+These operations should be handled safely so that the database does not end up in an inconsistent state.
+
+---
+
+# Future Improvements
+
+Potential backend features:
+
+* Advanced RBAC
+* Custom workspace roles
+* Task dependencies
+* Milestones
+* Calendar integration
+* Gantt data
+* Advanced analytics
+* Audit reports
+* Email notifications
+* Push notifications
+* Webhooks
+* External integrations
+* GitHub integration
+* Google Drive integration
+* AI project summaries
+* AI task breakdown
+* AI risk detection
+* Advanced search
+* Document version comparison
+* Video meetings
+* Voice communication
+
+---
+
+# Backend Philosophy
+
+The Nexus backend is built around one central principle:
+
+> Every piece of project work should have a clear owner, measurable progress, an auditable history, and a controlled path from assignment to completion.
+
+The backend therefore connects:
+
+```text
+AUTHENTICATION
+       ↓
+AUTHORIZATION
+       ↓
 WORKSPACES
+       ↓
+TEAMS
+       ↓
+PROJECTS
+       ↓
+TASKS
+       ↓
+SUBTASKS
+       ↓
+PROGRESS
+       ↓
+DELIVERABLES
+       ↓
+REVIEWS
+       ↓
+KNOWLEDGE BASE
+```
 
-Acme Team
-University Project
-Marketing
+while simultaneously supporting:
 
-Then clicking Acme Team gives you:
+```text
+REAL-TIME COMMUNICATION
+        +
+NOTIFICATIONS
+        +
+ACTIVITY TRACKING
+        +
+ANALYTICS
+```
 
-Overview
-Projects
-Tasks
-Documents
-Messages
-Files
-Members
+This allows Nexus to function as a complete collaborative project execution platform rather than simply a CRUD-based task management application.
 
-This keeps the application scalable.
-
-8. Project navigation
-
-When the user enters:
-
-Acme Team → Website Redesign
-
-you can have a project-level navigation:
-
-Website Redesign
-
-Overview | Board | Tasks | Documents | Activity
-Overview
-Website Redesign
-
-65% Complete
-
-Tasks
-32
-
-Completed
-21
-
-In Progress
-8
-
-Overdue
-3
-Board
-
-Your Trello-like experience:
-
-TO DO
-IN PROGRESS
-REVIEW
-DONE
-Tasks
-
-List/table view:
-
-Task | Assignee | Priority | Due Date | Status
-Documents
-
-Project-specific documentation.
-
-Activity
-Philip created "Build Login"
-Sarah moved "Homepage" to Review
-John completed "API"
-9. Where analytics should go
-
-I wouldn't create a huge "Analytics" page in the main navigation initially.
-
-Put it inside the workspace:
-
-Workspace
-   ↓
-Overview
-   ↓
-Analytics section
-
-Or:
-
-Workspace
-
-Overview
-Projects
-Tasks
-Documents
-Messages
-Files
-Members
-Settings
-
-The Overview itself can contain:
-
-PROJECT PERFORMANCE
-
-Tasks completed this week
-Average completion time
-Overdue tasks
-Project progress
-Team activity
-
-If analytics becomes substantial later, then give it its own page.
-
-10. Your final navigation
-
-So if I were designing this for you, I'd aim for:
-
-Global navigation
-
-6 items
-
-🏠 Home
-📋 My Tasks
-💬 Messages
-🔔 Notifications
-🏢 Workspaces
-⚙ Settings
-Inside a workspace
-
-7 items
-
-Overview
-Projects
-Tasks
-Documents
-Messages
-Files
-Members
-Inside a project
-
-5 items
-
-Overview
-Board
-Tasks
-Documents
-Activity
-
-That's enough.
-
-11. The complete user journey
-
-The application would basically flow like this:
-
-                    LANDING PAGE
-                         │
-                    Login/Register
-                         │
-                         ▼
-                      HOME
-                         │
-          ┌──────────────┼──────────────┐
-          │              │              │
-          ▼              ▼              ▼
-      My Tasks       Messages      Workspaces
-                                         │
-                         ┌───────────────┼──────────────┐
-                         │               │              │
-                         ▼               ▼              ▼
-                     Workspace A    Workspace B    Workspace C
-                         │
-              ┌──────────┼───────────┐
-              │          │           │
-              ▼          ▼           ▼
-           Projects     Tasks      Documents
-              │
-              ▼
-          Project
-              │
-       ┌──────┼───────┐
-       │      │       │
-       ▼      ▼       ▼
-      Board  Tasks  Documents
-And I would make the three "products" feel connected:
-
-Trello side:
-
-Board → Tasks → Assignments → Deadlines
-
-Notion side:
-
-Documents → Notes → Knowledge → Files
-
-Slack side:
-
-Channels → Messages → Comments → Notifications
-
-The key is that they all operate on the same workspace and project data.
-
-That is what makes your application more interesting than simply building three unrelated clones.

@@ -1,10 +1,11 @@
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const passwordChecks = [
-  { label: "at least 6 characters", test: (pw) => pw.length >= 6 },
-  { label: "one uppercase letter", test: (pw) => /[A-Z]/.test(pw) },
-  { label: "one lowercase letter", test: (pw) => /[a-z]/.test(pw) },
-  { label: "one number", test: (pw) => /\d/.test(pw) },
+  { label: "at least 6 characters", test: (pw) => pw.length >= 6 }
+  // ,
+  // { label: "one uppercase letter", test: (pw) => /[A-Z]/.test(pw) },
+  // { label: "one lowercase letter", test: (pw) => /[a-z]/.test(pw) },
+  // { label: "one number", test: (pw) => /\d/.test(pw) },
 ];
 
 function describePasswordRequirement(pw) {
