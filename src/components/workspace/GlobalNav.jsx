@@ -8,11 +8,12 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { NexusLogo } from "@/components/NexusLogo";
 import Avatar from "./Avatar";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { HomeIcon, ListTasksIcon, BellIcon, GridIcon, LogOutIcon } from "./icons";
+import { HomeIcon, ListTasksIcon, BellIcon, GridIcon, BoardIcon, LogOutIcon } from "./icons";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Home", icon: <HomeIcon size={16} /> },
   { href: "/tasks", label: "My Tasks", icon: <ListTasksIcon size={16} /> },
+  { href: "/projects", label: "Projects", icon: <BoardIcon size={16} /> },
   { href: "/notifications", label: "Notifications", icon: <BellIcon size={16} /> },
   { href: "/workspaces", label: "Workspaces", icon: <GridIcon size={16} /> },
 ];
@@ -24,7 +25,10 @@ export function GlobalNavLinks({ className = "" }) {
   return (
     <nav className={`flex items-center gap-1 ${className}`} aria-label="Global navigation">
       {NAV_ITEMS.map((item) => {
-        const active = pathname === item.href || (item.href === "/workspaces" && pathname.startsWith("/workspaces/"));
+        const active =
+          pathname === item.href ||
+          (item.href === "/workspaces" && pathname.startsWith("/workspaces/")) ||
+          (item.href === "/projects" && pathname.startsWith("/projects/"));
         return (
           <Link
             key={item.href}
