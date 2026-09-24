@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/RouteGuards";
 import { useResource } from "@/hooks/useResource";
-import "../../workspace.css";
+import "../workspace.css";
 import GlobalNav from "@/components/workspace/GlobalNav";
 import EmptyState from "@/components/workspace/EmptyState";
 import { BoardIcon, PlusIcon, UsersIcon, CalendarIcon, CheckIcon } from "@/components/workspace/icons";

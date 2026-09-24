@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useResource, useMutation } from "@/hooks/useResource";
+import "../../workspace.css";
 import { ArrowLeftIcon, EditIcon, TrashIcon, BoardIcon, UsersIcon, CalendarIcon, CheckIcon } from "@/components/workspace/icons";
 import Avatar from "@/components/workspace/Avatar";
 import Modal from "@/components/workspace/Modal";

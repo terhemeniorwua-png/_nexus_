@@ -424,7 +424,7 @@ npm run db:seed
 
 - 1 workspace, 7 users (bcrypt-hashed `Password123!`), 7 workspace memberships
 - 4 teams, 10 team memberships
-- 3 projects, 7 project memberships
+- 7 projects, 13 project memberships
 - 5 project resources, 12 board columns, 4 tasks (with weighted subtasks)
 - 1 deliverable, 1 review, 3 comments
 - 3 notifications, 4 activity logs
