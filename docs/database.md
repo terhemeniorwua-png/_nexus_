@@ -178,23 +178,31 @@ Existing board support: a column belongs to a `project` and orders tasks horizon
 | `columnId`   | ObjectId   | FK → boardcolumns, required, indexed   |
 | `title`      | String     | Required, trimmed, ≤300                |
 | `description`| String     | Default `""`, ≤10000                   |
-| `assignedTo` | ObjectId   | FK → users, nullable (unassigned)      |
-| `status`     | String     | Enum — see [Task statuses](#task-statuses), default `TO DO` |
-| `priority`   | String     | Enum — see [Priorities](#priorities), default `Medium` |
+| `assignedTo` | ObjectId   | FK → users, nullable (unassigned); assignee must be a project member / manager / workspace owner, else creation is rejected (400) |
+| `status`     | String     | Validator over `WORKFLOW_STATUSES + LEGACY_BOARD_STATUSES` ([Task statuses](#task-statuses)), default `ASSIGNED` |
+| `priority`   | String     | Validator over the dual-case list ([Priorities](#priorities)), default `MEDIUM` |
 | `position`   | Number     | Board ordering, default 0              |
 | `dueDate`    | Date       | Nullable                               |
-| `tags`       | [String]   | Default `[]`                           |
-| `subtasks`   | [subtask]  | Embedded subtask documents             |
+| `tags`       | [String]   | Default `[]`, ≤20                      |
+| `subtasks`   | [subtask]  | Embedded subtask documents (see below) |
 | `createdBy`  | ObjectId   | FK → users, required                   |
-| —            | —          | Index `(projectId, columnId, position)` |
+| —            | —          | Indexes `(projectId, columnId, position)`, `(projectId, status)`, `(projectId, assignedTo)`, `(projectId, dueDate)` |
+
+> `status` is the **only** field the generic task/board `PATCH` routes never touch — status changes go exclusively through `PATCH /api/tasks/:taskId/status`, which validates against `TRANSITION_RULES` (see `docs/authorization.md` §2.6).
 
 #### Subtasks (embedded)
 
-| Field      | Type    | Notes                                  |
-|------------|---------|----------------------------------------|
-| `title`    | String  | Required, ≤300                         |
-| `completed`| Boolean | Default `false`                        |
-| `weight`   | Number  | Per-subtask percentage contribution, `0–100`, default `0`. Sum-to-100 is enforced in the service layer (documented in [Assumptions](#assumptions)). |
+| Field        | Type    | Notes                                  |
+|--------------|---------|----------------------------------------|
+| `title`      | String  | Required, trimmed, ≤300                |
+| `description`| String  | Default `""`, ≤4000                    |
+| `completed`  | Boolean | Default `false`; kept in sync with `status` by a pre-save hook (`COMPLETED` → true) |
+| `status`     | String  | Enum `TODO`, `IN_PROGRESS`, `COMPLETED`, default `TODO` |
+| `assigneeId` | ObjectId | FK → users, nullable; must be a project member / manager / workspace owner |
+| `dueDate`    | Date    | Nullable                               |
+| `weight`     | Number  | Per-subtask percentage contribution, `0–100`, default `0`. Sum-to-100 is enforced in the service layer (documented in [Assumptions](#assumptions)). |
+
+Task `progress` is derived server-side as the percentage of `COMPLETED` subtasks (`null` when a task has none) — it is not persisted.
 
 ### deliverables
 
@@ -335,9 +343,13 @@ Tracks projects viewed by the current user (powers "Recently Viewed Projects").
 
 ### Task statuses
 
-The board model (existing app) uses `TO DO`, `IN PROGRESS`, `REVIEW`, `DONE`. The phase spec statuses were added to the same enum:
+**Phase 10 — canonical workflow** (`WORKFLOW_STATUSES`, the only states new tasks enter):
 
-`TO DO`, `IN PROGRESS`, `REVIEW`, `DONE`, `ASSIGNED`, `SUBMITTED`, `UNDER_REVIEW`, `CHANGES_REQUESTED`, `APPROVED`, `BLOCKED`
+`ASSIGNED`, `IN_PROGRESS`, `SUBMITTED`, `UNDER_REVIEW`, `CHANGES_REQUESTED`, `APPROVED`
+
+with the transition graph `ASSIGNED → IN_PROGRESS → SUBMITTED → UNDER_REVIEW → APPROVED` and the rework branch `UNDER_REVIEW → CHANGES_REQUESTED → IN_PROGRESS` (`APPROVED` terminal; enforced by `TRANSITION_RULES` in `services/task.service.js`).
+
+**Legacy board statuses** are still accepted by the `status` validator so pre-existing documents never invalidate on save: `TO DO`, `IN PROGRESS` (spaced — distinct from the underscored workflow value), `REVIEW`, `DONE`, `BLOCKED`. They have **no** transition rules; at *creation* they remap to a workflow state via `LEGACY_STATUS_TO_WORKFLOW` (`TO DO`/`BLOCKED` → `ASSIGNED`, `IN PROGRESS` → `IN_PROGRESS`, `REVIEW` → `SUBMITTED`, `DONE` → `APPROVED`). So `STATUSES = WORKFLOW_STATUSES + LEGACY_BOARD_STATUSES` is the persisted validation set, while `status` *changes* only ever move between workflow states through the dedicated status endpoint.
 
 ### Priorities
 
@@ -365,7 +377,7 @@ Both casings accepted for compatibility with the existing board (`Low`, `Medium`
 
 ### Notification types
 
-`TASK_ASSIGNED`, `TASK_COMPLETED`, `DELIVERABLE_SUBMITTED`, `DELIVERABLE_REVIEWED`, `PROJECT_INVITATION`, `COMMENT_MENTION`, plus existing `MENTION`, `TASK_MOVED`, `MEMBER_ADDED`, `DOCUMENT_SHARED`
+`TASK_ASSIGNED`, `TASK_COMPLETED`, `TASK_STATUS_CHANGED`, `DELIVERABLE_SUBMITTED`, `DELIVERABLE_REVIEWED`, `PROJECT_INVITATION`, `COMMENT_MENTION`, plus existing `MENTION`, `TASK_MOVED`, `MEMBER_ADDED`, `DOCUMENT_SHARED`
 
 ### Activity actions
 
@@ -425,9 +437,9 @@ npm run db:seed
 - 1 workspace, 7 users (bcrypt-hashed `Password123!`), 7 workspace memberships
 - 4 teams, 10 team memberships
 - 7 projects, 13 project memberships
-- 5 project resources, 12 board columns, 4 tasks (with weighted subtasks)
+- 5 project resources, 12 board columns, **17 tasks** (13 Phase-10 workflow tasks across *every* state — `ASSIGNED`, `IN_PROGRESS`, `SUBMITTED`, `UNDER_REVIEW`, `CHANGES_REQUESTED`, `APPROVED` — plus 4 legacy-status board tasks, all with weighted subtasks)
 - 1 deliverable, 1 review, 3 comments
-- 3 notifications, 4 activity logs
+- 7 notifications (incl. `TASK_ASSIGNED` + `TASK_STATUS_CHANGED`), 7 activity logs (incl. `TASK_STARTED` / `TASK_COMPLETED` / `TASK_UPDATED`)
 - 1 conversation, 2 members, 3 messages
 - 3 profile views, 3 project views
 

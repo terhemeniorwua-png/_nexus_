@@ -591,6 +591,15 @@ test("subtask CRUD: create, list, update, complete, delete", async () => {
   assert.equal(complete.status, 200);
   assert.equal(complete.json.subtask.completed, true);
 
+  // Task-level serialization must expose usable subtask ids (regression: the
+  // `id` virtual was lost after toJSON, yielding the literal string "undefined").
+  const detail = await api("GET", taskUrl(state.t1Id), { cookie: cookies.alan });
+  assert.equal(detail.status, 200);
+  for (const s of detail.json.task.subtasks) {
+    assert.ok(s.id, "subtask id is present on the task payload");
+    assert.notEqual(s.id, "undefined");
+  }
+
   const updated = await api("GET", `${taskUrl(state.t1Id)}/subtasks`, { cookie: cookies.margaret });
   assert.equal(updated.json.progress, 50, "half of the subtasks are done");
 

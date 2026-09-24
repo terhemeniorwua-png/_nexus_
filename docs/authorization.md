@@ -78,7 +78,9 @@ The single source of truth lives in `permissions/permissions.js`. Controllers an
 | `view_project_members`, `view_project_resources` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `view_activity`, `view_document` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `comment` | ✅ | ✅ | ✅ | ✅ | – | – |
-| `create_subtask`, `complete_subtask` | ✅ | ✅ | ✅ | ✅ | ✅ | – |
+| `create_subtask`, `update_subtask`, `delete_subtask`, `complete_subtask` | ✅ | ✅ | ✅ | ✅ | ✅ | – |
+| `submit_task` (submit for review) | ✅ | ✅ | ✅ | ⚠️² | ⚠️² | – |
+| `review_task`, `approve_task`, `request_task_changes` | ✅ | ✅ | ✅ | – | – | – |
 | `update_task` | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | – |
 | `upload_deliverable` | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | – |
 | `create_document`, `update_document` | ✅ | ✅ | ✅ | ✅ | – | – |
@@ -94,6 +96,7 @@ The single source of truth lives in `permissions/permissions.js`. Controllers an
 \* `WORKSPACE_OWNER` / `ADMIN` are the **derived** project roles for owners/admins acting inside a workspace project. `PROJECT_MANAGER` never has `delete_project`.
 
 ⚠️ = restricted further by ownership (below).
+⚠️² = restricted to the task **assignee** (worker steps, see §2.6).
 
 ### 2.3 Task ownership rule
 
@@ -107,6 +110,25 @@ For roles **without** `assign_task` (MEMBER and COLLABORATOR), `update_task` / `
 
 Only workspace owners and admins may assign the `PROJECT_MANAGER` role (`canGrantManagerRole` in `projectMember.controller.js`). A project manager cannot grant it and cannot promote themselves.
 
+### 2.6 Task status workflow (Phase 10)
+
+Tasks live on a governed workflow — **`ASSIGNED → IN_PROGRESS → SUBMITTED → UNDER_REVIEW → APPROVED`**, with a rework branch **`UNDER_REVIEW → CHANGES_REQUESTED → IN_PROGRESS`**. `APPROVED` is terminal. The single source of truth is `TRANSITION_RULES` in `services/task.service.js`; each edge names the required permission and whether it is a *worker* or *reviewer* step:
+
+| Transition | Permission | Type | Requires |
+| --- | --- | --- | --- |
+| `ASSIGNED → IN_PROGRESS` | `update_task` | worker | assignee |
+| `IN_PROGRESS → SUBMITTED` | `submit_task` | worker | assignee |
+| `SUBMITTED → UNDER_REVIEW` | `review_task` | reviewer | PM / derived owner+admin |
+| `UNDER_REVIEW → APPROVED` | `approve_task` | reviewer | PM / derived owner+admin |
+| `UNDER_REVIEW → CHANGES_REQUESTED` | `request_task_changes` | reviewer | PM / derived owner+admin |
+| `CHANGES_REQUESTED → IN_PROGRESS` | `update_task` | worker | assignee |
+
+The **only** way to change status is `PATCH /api/tasks/:taskId/status` (handling in `task.route.js`); generic `PATCH` updates ignore `status` entirely, so board drag-drop never mutates workflow state. Worker steps are assignee-only (`assertStatusTransition` compares `task.assignedTo` to `req.user`); reviewer steps require a project role holding the transition's permission. Anything else → **400** (unknown/invalid transition) or **403** (not the assignee / insufficient role).
+
+- **Assignees must have project access.** Creating a task or subtask (or reassigning) runs `assertAssigneeInProject`: the target must be a `ProjectMember` row, the project `managerId`, the workspace owner, or a workspace-admin-derived user, else **400** `"Assignee must be a member of this project"`.
+- **Legacy board statuses** (`TO DO`, `IN PROGRESS`, `REVIEW`, `DONE`, `BLOCKED`) remap at creation via `LEGACY_STATUS_TO_WORKFLOW` (`TO DO`/`BLOCKED` → `ASSIGNED`, `IN PROGRESS` → `IN_PROGRESS`, `REVIEW` → `SUBMITTED`, `DONE` → `APPROVED`), so new tasks always enter a governed state. Legacy values remain *valid* document states (the `status` validator accepts `STATUSES = WORKFLOW_STATUSES + LEGACY_BOARD_STATUSES`) so pre-existing data never invalidates, but they hold no transition rules.
+- **Subtasks** are embedded in the task document. `subtaskTaskAccess` (authorize.js) locates the owning task from `:subtaskId`, then applies the same project access rules as `taskAccess`; mutation routes require `create_subtask` / `update_subtask` / `delete_subtask` **plus** `requireTaskOwnership`. Subtask `status` is `TODO` / `IN_PROGRESS` / `COMPLETED` (toggling `status` keeps `completed` in sync); task `progress` is the completed-subtask percentage (`null` when there are none).
+
 ---
 
 ## 3. Middleware
@@ -119,6 +141,9 @@ Only workspace owners and admins may assign the `PROJECT_MANAGER` role (`canGran
 | `projectAccess` | project routes | Loads the project (must belong to the workspace), resolves the project role, sets `req.project` / `req.projectMember` / `req.projectRole`. Denies with **403** when there is no role. |
 | `requireProjectPermission(action)` | project routes | Requires `hasProjectPermission(req.projectRole, action)`. |
 | `taskOwnership` | board task routes | Enforces the ownership rule; attaches `req.task`. |
+| `taskAccess` | global task routes (`/api/tasks/:id`) | Loads the task, then the owning project, and resolves project+workspace context exactly like a project route; attaches `req.task` / `req.subtask` / `req.project` / `req.projectRole`. **404** not found / invalid id, **403** no project role. |
+| `subtaskTaskAccess` | global subtask routes (`/api/subtasks/:id`) | Finds the task that owns the embedded subtask by `:subtaskId`, attaches `req.subtask`, then applies the same access rules as `taskAccess`. |
+| `requireTaskOwnership` | task + subtask routes | Runs after `taskAccess`/`subtaskTaskAccess`; members/collaborators may only mutate tasks **assigned to them** (or that they created); `assign_task` holders manage any task. |
 | `documentAccess(action)` | document routes | For project-scoped documents, resolves the **project** role; for workspace documents, uses the workspace role. |
 | `attachWorkspaceContext` | team routes | Resolves a workspace from `req.body.workspaceId` (or a team's `workspaceId` when the body omits it); sets `req.workspace` / `req.workspaceRole`. **404** invalid, **403** non-member. |
 | `teamAccess` | team routes | Loads the team by `:teamId`, verifies it belongs to the workspace, attaches `req.team`, `req.teamMember`, `req.isTeamLead`. |
@@ -128,6 +153,7 @@ Only workspace owners and admins may assign the `PROJECT_MANAGER` role (`canGran
 | `requireProjectDetails` | global project create | Flags `req.requireProjectDetails` so the shared controller enforces a required `teamId` + `managerId` (global creates always require them). |
 
 Run order on project-scoped routes: `authenticate → memberOf → (projectAccess) → requireProjectPermission → taskOwnership`.
+Global task routes run `authenticate → taskAccess/subtaskTaskAccess → requireProjectPermission → requireTaskOwnership`.
 Team routes run `authenticate → attachWorkspaceContext/teamAccess → requirePermission/requireTeamMemberManagement`.
 
 ---
@@ -177,6 +203,12 @@ Mounts are in `app.js`; each route file declares its own permission gate.
 | `POST /api/projects/:projectId/members` | `globalProjectAccess` + `invite_project_member` (invited user must belong to the project's workspace → else **400**) |
 | `PATCH/DELETE /api/projects/:projectId/members/:userId` | `globalProjectAccess` + `invite_project_member` / `remove_project_member` |
 | `GET /api/me/overview`, `GET /api/me/tasks` | authenticated (filtered to accessible projects) |
+| `GET /api/projects/:projectId/tasks` | `globalProjectAccess` + `view_task` (`?status` / `?priority` / `?assigneeId` filters; invalid → 400) |
+| `POST /api/projects/:projectId/tasks` | `globalProjectAccess` + `create_task` (assignee must be a project member → else 400) |
+| `GET/PATCH/DELETE /api/tasks/:taskId` | `taskAccess` + `view_task` / (`update_task` / `delete_task` + `requireTaskOwnership`; generic PATCH ignores `status`) |
+| `PATCH /api/tasks/:taskId/status` | `taskAccess` + `update_task` + transition rules (worker steps assignee-only; reviewer steps PM / derived owner+admin) |
+| `GET/POST /api/tasks/:taskId/subtasks` | `taskAccess` + `view_task` / (`create_subtask` + `requireTaskOwnership`) |
+| `GET/PATCH/DELETE /api/subtasks/:subtaskId` | `subtaskTaskAccess` + `view_task` / (`update_subtask` / `delete_subtask` + `requireTaskOwnership`) |
 
 **Validation errors** (invalid enums, bad dates, cross-workspace team/manager, missing name/team/manager, due-before-start) are returned as **400** with the exact reason; the `errorHandler` maps Mongoose `ValidationError` → 400 as a fallback.
 
@@ -197,6 +229,7 @@ The board UI derives its state from the project role returned on each project (`
 - **Assignee selector** — disabled for role without `assign_task` (MEMBER / COLLABORATOR / VIEWER); the server ignores reassignments anyway.
 - **Delete task** — only managers/owners/admins.
 - **Comments** — comment box only when the role has `comment` (MEMBER and up); delete-any-comment only for managers/owners/admins.
+- **Task list / detail (Phase 10)** — "New task" and Edit/Delete buttons show only for managers/owners/admins; the assignee selector lists `assignableMembers` the server derives (project members + manager + all workspace members for owners/admins). Status action buttons are gated by the role the server returns for the project: worker moves render for the assignee (others see a "waiting on assignee" hint), reviewer moves render for managers/owners/admins, and failed transitions surface the backend's error rather than being hidden — the server remains the source of truth.
 
 ---
 
@@ -208,6 +241,6 @@ The board UI derives its state from the project role returned on each project (`
 cd backend && npm test
 ```
 
-The workspace+authz suite covers: 401 (missing/invalid token), 403 for non-members, workspace vs project roles, owner/admin derivation, cross-team collaborator access, project-listing filtering, task ownership, assignment gating, deliverable submit/review rules, project-member management, self-promotion denial, task reordering, document scoping, and activity filtering. The team suite covers team CRUD, the workspace teams list, member add/remove/role changes, the team-lead management bypass, cross-workspace member rejection, duplicate name/membership conflicts, the `getTeam` layered detail payload (team + workspace + role + isTeamLead + projects), and the safe-delete rule (projects preserved, `teamId` nulled). The **phase-8 projects suite** (`backend/test/projects.test.js`, 39 tests on `nexus_projects_test`) covers the global project API: 401/403 gates, create with required team+manager, `body.workspaceId` being ignored, manager eligibility (owners/admins/members only, cross-workspace rejected), enum/date validation, authorized list/filter behavior, detail enrichment (team/workspace/manager/members), id-manipulation isolation, update (cross-workspace team/manager rejection, enums, date ranges, empty name), **manager handoff** (new manager promoted, old manager demoted to `MEMBER`), the delete matrix (owner/admin only), delete cascade + 404 after, and the `/meta` endpoint (create-eligible workspaces; viewer gets `[]`). The **phase-9 access suite** (`backend/test/projectAccess.test.js`, 12 tests on `nexus_projectaccess_test`) verifies the explicit project-access model: team membership alone grants nothing (**403** without a project row), explicit + cross-team collaborators gain access without joining the other team, access is isolated per project, duplicate invites → **409**, unauthorized invitations/role changes/removals → **403**, unknown users → **404**, cross-workspace invites → **400**, unsupported roles → **400**, unauthenticated calls → **401**, and IDOR attempts by known project ids → **403**. Running the full suite: **100 tests**.
+The workspace+authz suite covers: 401 (missing/invalid token), 403 for non-members, workspace vs project roles, owner/admin derivation, cross-team collaborator access, project-listing filtering, task ownership, assignment gating, the Phase-10 task workflow (worker vs reviewer transitions, legacy creation mapping, assignee-must-be-a-member), deliverable submit/review rules, project-member management, self-promotion denial, task reordering, document scoping, and activity filtering. The **phase-10 tasks suite** (`backend/test/tasks.test.js`, 17 tests on `nexus_tasks_test`) covers task CRUD with assignee-must-be-a-project-member enforcement, the dedicated status endpoint (valid/invalid transitions, assignee-only worker steps, reviewer-only review steps), subtask CRUD + completion + progress, the subtask serialized-id regression, and the board's consistent task count after deletion. The team suite covers team CRUD, the workspace teams list, member add/remove/role changes, the team-lead management bypass, cross-workspace member rejection, duplicate name/membership conflicts, the `getTeam` layered detail payload (team + workspace + role + isTeamLead + projects), and the safe-delete rule (projects preserved, `teamId` nulled). The **phase-8 projects suite** (`backend/test/projects.test.js`, 39 tests on `nexus_projects_test`) covers the global project API: 401/403 gates, create with required team+manager, `body.workspaceId` being ignored, manager eligibility (owners/admins/members only, cross-workspace rejected), enum/date validation, authorized list/filter behavior, detail enrichment (team/workspace/manager/members), id-manipulation isolation, update (cross-workspace team/manager rejection, enums, date ranges, empty name), **manager handoff** (new manager promoted, old manager demoted to `MEMBER`), the delete matrix (owner/admin only), delete cascade + 404 after, and the `/meta` endpoint (create-eligible workspaces; viewer gets `[]`). The **phase-9 access suite** (`backend/test/projectAccess.test.js`, 12 tests on `nexus_projectaccess_test`) verifies the explicit project-access model: team membership alone grants nothing (**403** without a project row), explicit + cross-team collaborators gain access without joining the other team, access is isolated per project, duplicate invites → **409**, unauthorized invitations/role changes/removals → **403**, unknown users → **404**, cross-workspace invites → **400**, unsupported roles → **400**, unauthenticated calls → **401**, and IDOR attempts by known project ids → **403**. Running the full suite: **100 tests**.
 
-Seeded dev users (`npm run db:seed`) match the personas used in the tests: `ada` (owner, collaborator on platform), `alan` (admin + platform PM), `linus`/`margaret` (platform members; margaret also `COLLABORATOR` on the design system), `katherine` (benchmark PM), `grace` (design PM), `barbara` (design viewer). All use the password `Password123!`. Phase 8 seeds 4 more projects onto the workspace: **Nexus Research Platform** (Research, katherine PM, ACTIVE/HIGH), **Mobile Banking API** (Engineering, linus PM, COMPLETED/URGENT), **Healthcare Management System** (Engineering, alan PM, ACTIVE/URGENT), **Developer Learning Platform** (Product, grace PM, PLANNING/MEDIUM), each with a matching `PROJECT_MANAGER` membership row (`docs/database.md` §9, now 7 projects / 13 project memberships).
+Seeded dev users (`npm run db:seed`) match the personas used in the tests: `ada` (owner, collaborator on platform), `alan` (admin + platform PM), `linus`/`margaret` (platform members; margaret also `COLLABORATOR` on the design system), `katherine` (benchmark PM), `grace` (design PM), `barbara` (design viewer). All use the password `Password123!`. Phase 8 seeds 4 more projects onto the workspace: **Nexus Research Platform** (Research, katherine PM, ACTIVE/HIGH), **Mobile Banking API** (Engineering, linus PM, COMPLETED/URGENT), **Healthcare Management System** (Engineering, alan PM, ACTIVE/URGENT), **Developer Learning Platform** (Product, grace PM, PLANNING/MEDIUM), each with a matching `PROJECT_MANAGER` membership row (`docs/database.md` §9, now 7 projects / 13 project memberships). Phase 10 seeds 13 additional tasks (17 total) exercising **every workflow state** — `ASSIGNED`, `IN_PROGRESS`, `SUBMITTED`, `UNDER_REVIEW`, `CHANGES_REQUESTED`, `APPROVED` — across the platform, benchmark, and design-system projects, with embedded subtasks, plus running subtask lists, a `TASK_STATUS_CHANGED` notification, and `TASK_STARTED` / `TASK_COMPLETED` / `TASK_UPDATED` activity entries.

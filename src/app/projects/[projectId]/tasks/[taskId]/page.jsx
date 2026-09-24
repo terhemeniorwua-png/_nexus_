@@ -484,9 +484,9 @@ export default function TaskDetailPage() {
                     </span>
                   )}
                 </h2>
-                {(project?.workspace?.id || project?.id) && (
+                {project?.workspace?.id && (
                   <Link
-                    href={`/workspaces/${project.workspace?.id}/projects/${project.id}/board`}
+                    href={`/workspaces/${project.workspace.id}/projects/${project.id}/board`}
                     className="inline-flex items-center gap-1.5 text-[12px] text-zinc-500 transition-colors hover:text-white"
                   >
                     <BoardIcon size={14} /> Open board
