@@ -280,7 +280,7 @@ function requireProjectPermission(permission) {
  * Must run AFTER `projectAccess`.
  * Loads and attaches req.task.
  */
-async function taskOwnership(req, _res, next) {
+async function taskOwnership(req, res, next) {
   try {
     const { taskId } = req.params;
 
@@ -311,6 +311,117 @@ async function taskOwnership(req, _res, next) {
   } catch (error) {
     next(error);
   }
+}
+
+/**
+ * Global task-context gate (Phase 10). Resolves a task by :taskId (any
+ * project, any workspace), attaches the task's project + workspace context,
+ * and the caller's project role. Same access semantics as projectAccess —
+ * a regular workspace member without project access is rejected with 403.
+ *
+ * Must run AFTER `authenticate`. Attaches:
+ *   req.task, req.project, req.projectMember, req.projectRole
+ *   plus workspace context (req.workspace, req.workspaceRole)
+ */
+async function taskAccess(req, _res, next) {
+  try {
+    const { taskId } = req.params;
+
+    if (!taskId || !mongoose.isValidObjectId(taskId)) {
+      return next(new ApiError(404, "Task not found"));
+    }
+
+    const task = await Task.findById(taskId);
+    if (!task) return next(new ApiError(404, "Task not found"));
+
+    const project = await Project.findById(task.projectId);
+    if (!project) return next(new ApiError(404, "Task not found"));
+
+    await attachProjectTaskContext({ req, task, project, next });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Global subtask-context gate (Phase 10). Locates the task that owns the
+ * embedded subtask referenced by :subtaskId, then applies the same access
+ * rules as taskAccess.
+ *
+ * Must run AFTER `authenticate`. Attaches req.task, req.subtask,
+ * req.project, req.projectRole and the workspace context.
+ */
+async function subtaskTaskAccess(req, _res, next) {
+  try {
+    const { subtaskId } = req.params;
+
+    if (!subtaskId || !mongoose.isValidObjectId(subtaskId)) {
+      return next(new ApiError(404, "Subtask not found"));
+    }
+
+    const task = await Task.findOne({ "subtasks._id": subtaskId });
+    if (!task) return next(new ApiError(404, "Subtask not found"));
+
+    const subtask = task.subtasks.find((s) => String(s._id) === String(subtaskId));
+    if (!subtask) return next(new ApiError(404, "Subtask not found"));
+
+    const project = await Project.findById(task.projectId);
+    if (!project) return next(new ApiError(404, "Subtask not found"));
+
+    await attachProjectTaskContext({ req, task, project, next, subtask });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function attachProjectTaskContext({ req, task, project, next, subtask = null }) {
+  try {
+    const workspace = await Workspace.findById(project.workspaceId);
+    if (!workspace) return next(new ApiError(404, "Workspace not found"));
+
+    await attachWorkspaceContext(req, workspace);
+
+    const resolved = await resolveProjectRole({
+      user: req.user,
+      project,
+      isOwner: Boolean(req.isOwner),
+      workspaceMemberRole: req.memberRole,
+    });
+
+    if (!resolved) {
+      return next(new ApiError(403, "You do not have permission to view this task"));
+    }
+
+    req.project = project;
+    req.task = task;
+    if (subtask) req.subtask = subtask;
+    req.projectMember = resolved.member;
+    req.projectRole = resolved.role;
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Task ownership for tasks already attached by taskAccess/subtaskTaskAccess.
+ * Members/collaborators may only mutate tasks assigned to them (assign_task
+ * holders may manage any task). Runs AFTER taskAccess.
+ */
+function requireTaskOwnership(req, _res, next) {
+  if (!req.task) return next(new ApiError(404, "Task not found"));
+
+  const canManage = hasProjectPermission(req.projectRole, "assign_task");
+  if (!canManage) {
+    const task = req.task;
+    const isAssignee = task.assignedTo && String(task.assignedTo) === String(req.user._id);
+    const isCreator = task.createdBy && String(task.createdBy) === String(req.user._id);
+    if (!isAssignee && !isCreator) {
+      return next(new ApiError(403, "You can only modify tasks assigned to you"));
+    }
+  }
+
+  next();
 }
 
 /**
@@ -373,5 +484,8 @@ module.exports = {
   globalProjectAccess,
   requireProjectPermission,
   taskOwnership,
+  taskAccess,
+  subtaskTaskAccess,
+  requireTaskOwnership,
   documentAccess,
 };

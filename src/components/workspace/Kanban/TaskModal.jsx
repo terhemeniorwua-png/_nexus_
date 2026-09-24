@@ -6,8 +6,22 @@ import { useMutation } from "@/hooks/useResource";
 import { PlusIcon, TrashIcon, CheckIcon, XIcon } from "../icons";
 import TaskComments from "./TaskComments";
 
-const STATUSES = ["TO DO", "IN PROGRESS", "REVIEW", "DONE"];
-const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
+// Tasks may only be CREATED in the first two workflow states (the board maps
+// its legacy columns into them). Later workflow moves go through the dedicated
+// status endpoint, so editing a task here never changes its status.
+const STATUSES = ["ASSIGNED", "IN_PROGRESS"];
+const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"];
+
+function columnToStatus(columnName) {
+  return columnName === "In Progress" ? "IN_PROGRESS" : "ASSIGNED";
+}
+
+const LEGACY_PRIORITY = {
+  Low: "LOW",
+  Medium: "MEDIUM",
+  High: "HIGH",
+  Urgent: "URGENT",
+};
 
 function Field({ label, children }) {
   return (
@@ -39,7 +53,6 @@ export default function TaskModal({
   workspaceId,
   projectId,
   members = [],
-  columns = [],
   task = null,
   defaultColumnId = null,
   defaultStatus = null,
@@ -54,8 +67,8 @@ export default function TaskModal({
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [status, setStatus] = useState("TO DO");
-  const [priority, setPriority] = useState("Medium");
+  const [status, setStatus] = useState(columnToStatus(defaultStatus));
+  const [priority, setPriority] = useState("MEDIUM");
   const [assignedTo, setAssignedTo] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [tagsText, setTagsText] = useState("");
@@ -72,8 +85,8 @@ export default function TaskModal({
     setIsDeleted(false);
     setTitle(task?.title || "");
     setDescription(task?.description || "");
-    setStatus(task?.status || defaultStatus || "TO DO");
-    setPriority(task?.priority || "Medium");
+    setStatus(task?.status || columnToStatus(defaultStatus));
+    setPriority(LEGACY_PRIORITY[task?.priority] || task?.priority || "MEDIUM");
     setAssignedTo(task?.assignedTo?.id || "");
     setDueDate(task?.dueDate ? new Date(task.dueDate).toISOString().slice(0, 10) : "");
     setTagsText((task?.tags || []).join(", "));
@@ -115,8 +128,7 @@ export default function TaskModal({
     };
 
     if (!task) {
-      const col = columns.find((c) => c.name === status) || columns[0];
-      payload.columnId = col?.id || defaultColumnId || null;
+      payload.columnId = defaultColumnId || null;
     }
 
     const path = task
@@ -176,13 +188,19 @@ export default function TaskModal({
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <Field label="Status">
-            <Select value={status} onChange={setStatus}>
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </Select>
+            {task ? (
+              <div className="flex h-10 items-center rounded-lg border border-white/10 bg-white/[0.03] px-3 text-[13px] font-medium text-zinc-300">
+                {status}
+              </div>
+            ) : (
+              <Select value={status} onChange={setStatus}>
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </Select>
+            )}
           </Field>
           <Field label="Priority">
             <Select value={priority} onChange={setPriority}>

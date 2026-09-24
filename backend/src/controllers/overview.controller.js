@@ -123,11 +123,9 @@ async function getOverview(req, res, next) {
       const due = task.dueDate ? new Date(task.dueDate).getTime() : null;
       const decorated = decorate(task);
 
-      if (!due) {
-        return;
-      }
-
-      if (task.status === "DONE") return;
+      // Phase 10: APPROVED (workflow) and the legacy DONE are both terminal.
+      const terminal = task.status === "DONE" || task.status === "APPROVED";
+      if (!due || terminal) return;
 
       if (due < now) {
         overdue.push(decorated);
@@ -135,7 +133,7 @@ async function getOverview(req, res, next) {
         dueSoon.push(decorated);
       }
 
-      if (task.status === "IN PROGRESS") inProgress.push(decorated);
+      if (task.status === "IN_PROGRESS" || task.status === "IN PROGRESS") inProgress.push(decorated);
     });
 
     const recentActivityItems = await latestActivityAcross(workspaceIds, projects.map((p) => p._id), 15);

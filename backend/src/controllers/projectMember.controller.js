@@ -1,6 +1,7 @@
 "use strict";
 
 const User = require("../models/user.model");
+const WorkspaceMember = require("../models/workspaceMember.model");
 const ProjectMember = require("../models/projectMember.model");
 const { ApiError } = require("../middleware/errorHandler");
 const { recordActivity } = require("../services/activity.service");
@@ -72,6 +73,19 @@ async function inviteProjectMember(req, res, next) {
     }
     if (!user) {
       return next(new ApiError(404, "No user found for the provided email or userId"));
+    }
+
+    // Phase 9 — project members must belong to the project's workspace. The
+    // invited user does NOT need to be on the project's team (cross-team
+    // collaboration); only a shared workspace is required.
+    const workspaceOwnerId = req.workspace && String(req.workspace.ownerId);
+    const isWorkspaceOwner = workspaceOwnerId && workspaceOwnerId === String(user._id);
+    const isWorkspaceMember = await WorkspaceMember.exists({
+      workspaceId: req.workspace._id,
+      userId: user._id,
+    });
+    if (!isWorkspaceOwner && !isWorkspaceMember) {
+      return next(new ApiError(400, "User does not belong to this workspace"));
     }
 
     const existing = await ProjectMember.findOne({

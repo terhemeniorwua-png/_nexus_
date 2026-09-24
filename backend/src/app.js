@@ -17,6 +17,7 @@ const overviewRoutes = require("./routes/overview.route");
 const projectMemberRoutes = require("./routes/projectMember.route");
 const deliverableRoutes = require("./routes/deliverable.route");
 const projectResourceRoutes = require("./routes/projectResource.route");
+const taskRoutes = require("./routes/task.route");
 const { notFoundHandler, errorHandler } = require("./middleware/errorHandler");
 
 const app = express();
@@ -52,6 +53,10 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/me", overviewRoutes);
 
 app.patch("/api/tasks/reorder", authenticate, reorderTask);
+
+// Phase 10 task/subtask routes. Registered AFTER /api/tasks/reorder so the
+// specific reorder endpoint wins over the generic /tasks/:taskId routes.
+app.use("/api", taskRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

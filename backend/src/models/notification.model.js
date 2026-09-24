@@ -4,6 +4,7 @@ const { applyTransforms } = require("../utils/serialize");
 const TYPES = [
   "TASK_ASSIGNED",
   "TASK_COMPLETED",
+  "TASK_STATUS_CHANGED",
   "DELIVERABLE_SUBMITTED",
   "DELIVERABLE_REVIEWED",
   "PROJECT_INVITATION",

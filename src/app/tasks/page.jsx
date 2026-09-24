@@ -9,24 +9,30 @@ import GlobalNav from "@/components/workspace/GlobalNav";
 import EmptyState from "@/components/workspace/EmptyState";
 import Avatar from "@/components/workspace/Avatar";
 import { ListTasksIcon, ClockIcon, SearchIcon, CheckIcon } from "@/components/workspace/icons";
-import { PRIORITY_COLORS, STATUS_COLORS } from "@/lib/workspaceApi";
+import { PRIORITY_COLORS, TASK_STATUSES, taskStatusMeta } from "@/lib/workspaceApi";
 import { useAuth } from "@/context/AuthContext";
 
 function isOverdue(dueDate, status) {
-  return Boolean(dueDate && status !== "DONE" && new Date(dueDate).getTime() < Date.now());
+  return Boolean(
+    dueDate &&
+      status !== "DONE" &&
+      status !== "APPROVED" &&
+      new Date(dueDate).getTime() < Date.now()
+  );
 }
 
-const STATUSES = ["TO DO", "IN PROGRESS", "REVIEW", "DONE"];
+const LEGACY_STATUSES = ["TO DO", "IN PROGRESS", "REVIEW", "DONE", "BLOCKED"];
+const STATUSES = [...TASK_STATUSES, ...LEGACY_STATUSES];
 const TABS = ["ALL", ...STATUSES];
 
 function StatusPill({ status }) {
-  const color = STATUS_COLORS[status] || "#8b8b91";
+  const meta = taskStatusMeta(status);
   return (
     <span
       className="shrink-0 rounded-md border px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide"
-      style={{ color, backgroundColor: `${color}14`, borderColor: `${color}33` }}
+      style={{ color: meta.color, backgroundColor: `${meta.color}14`, borderColor: `${meta.color}33` }}
     >
-      {status}
+      {meta.label}
     </span>
   );
 }
@@ -46,7 +52,7 @@ function PriorityBadge({ priority }) {
 }
 
 function TaskRow({ task }) {
-  const href = `/workspaces/${task.workspaceId}/projects/${task.projectId}/board`;
+  const href = `/projects/${task.projectId}/tasks/${task.id}`;
   const overdue = Boolean(isOverdue(task.dueDate, task.status));
   const subtaskDone = (task.subtasks || []).filter((s) => s.completed).length;
   const tags = task.tags || [];
@@ -129,8 +135,11 @@ export default function TasksPage() {
     });
   }, [tasks, filter, query]);
 
-  const inProgress = counts["IN PROGRESS"] || 0;
+  const statusCount = (key) => (counts[key] || 0);
+  const inProgress = statusCount("IN_PROGRESS") + statusCount("IN PROGRESS");
   const overdue = tasks.filter((t) => isOverdue(t.dueDate, t.status)).length;
+
+  const visibleStatuses = useMemo(() => TABS.filter((t) => t === "ALL" || counts[t]), [counts]);
 
   return (
     <ProtectedRoute>
@@ -165,8 +174,9 @@ export default function TasksPage() {
             </header>
 
             <div className="mt-6 flex gap-1.5 overflow-x-auto pb-1 ws-scroll">
-              {TABS.map((tab) => {
+              {visibleStatuses.map((tab) => {
                 const active = filter === tab;
+                const label = tab === "ALL" ? "All" : taskStatusMeta(tab).label;
                 return (
                   <button
                     key={tab}
@@ -178,7 +188,7 @@ export default function TasksPage() {
                         : "border-white/8 bg-white/[0.03] text-zinc-400 hover:border-white/16 hover:text-zinc-100"
                     }`}
                   >
-                    {tab === "ALL" ? "All" : tab}
+                    {label}
                     <span
                       className={`rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold ${
                         active ? "bg-white/15 text-white" : "bg-white/5 text-zinc-500"

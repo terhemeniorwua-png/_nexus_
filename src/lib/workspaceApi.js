@@ -11,7 +11,68 @@ export const PRIORITY_COLORS = {
   Medium: "#eab308",
   High: "#f97316",
   Urgent: "#ef4444",
+  LOW: "#22c55e",
+  MEDIUM: "#eab308",
+  HIGH: "#f97316",
+  URGENT: "#ef4444",
 };
+
+// Phase 10 — canonical task workflow statuses.
+export const TASK_STATUSES = [
+  "ASSIGNED",
+  "IN_PROGRESS",
+  "SUBMITTED",
+  "UNDER_REVIEW",
+  "CHANGES_REQUESTED",
+  "APPROVED",
+];
+
+export const TASK_STATUS_META = {
+  ASSIGNED: { label: "Assigned", color: "#8b8b91" },
+  IN_PROGRESS: { label: "In progress", color: "#3b82f6" },
+  SUBMITTED: { label: "Submitted", color: "#a855f7" },
+  UNDER_REVIEW: { label: "Under review", color: "#eab308" },
+  CHANGES_REQUESTED: { label: "Changes requested", color: "#f97316" },
+  APPROVED: { label: "Approved", color: "#22c55e" },
+  // Legacy board statuses kept for rendering pre-existing tasks.
+  "TO DO": { label: "To do", color: "#8b8b91" },
+  "IN PROGRESS": { label: "In progress", color: "#3b82f6" },
+  REVIEW: { label: "Review", color: "#a855f7" },
+  DONE: { label: "Done", color: "#22c55e" },
+  BLOCKED: { label: "Blocked", color: "#ef4444" },
+};
+
+export const TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"];
+
+export const TASK_PRIORITY_META = {
+  LOW: { label: "Low", color: "#22c55e" },
+  MEDIUM: { label: "Medium", color: "#eab308" },
+  HIGH: { label: "High", color: "#f97316" },
+  URGENT: { label: "Urgent", color: "#ef4444" },
+};
+
+export const SUBTASK_STATUSES = ["TODO", "IN_PROGRESS", "COMPLETED"];
+
+export const SUBTASK_STATUS_META = {
+  TODO: { label: "To do", color: "#8b8b91" },
+  IN_PROGRESS: { label: "In progress", color: "#3b82f6" },
+  COMPLETED: { label: "Completed", color: "#22c55e" },
+};
+
+export function taskStatusMeta(status) {
+  return (
+    TASK_STATUS_META[status] || { label: status || "—", color: "#8b8b91" }
+  );
+}
+
+export function taskPriorityMeta(priority) {
+  return (
+    TASK_PRIORITY_META[priority] || PRIORITY_COLORS[priority] && {
+      label: priority,
+      color: PRIORITY_COLORS[priority],
+    } || { label: priority || "—", color: "#8b8b91" }
+  );
+}
 
 export const PROJECT_PRIORITY_META = {
   LOW: { label: "Low", color: "#22c55e" },
@@ -33,6 +94,13 @@ export const STATUS_COLORS = {
   "IN PROGRESS": "#3b82f6",
   REVIEW: "#a855f7",
   DONE: "#22c55e",
+  ASSIGNED: "#8b8b91",
+  IN_PROGRESS: "#3b82f6",
+  SUBMITTED: "#a855f7",
+  UNDER_REVIEW: "#eab308",
+  CHANGES_REQUESTED: "#f97316",
+  APPROVED: "#22c55e",
+  BLOCKED: "#ef4444",
 };
 
 export function initialsOf(name) {
@@ -63,12 +131,12 @@ export function formatRelative(value) {
 }
 
 export function isOverdue(task) {
-  if (!task?.dueDate || task.status === "DONE") return false;
+  if (!task?.dueDate || task.status === "DONE" || task.status === "APPROVED") return false;
   return new Date(task.dueDate).getTime() < Date.now();
 }
 
 export function isDueSoon(task) {
-  if (!task?.dueDate || task.status === "DONE") return false;
+  if (!task?.dueDate || task.status === "DONE" || task.status === "APPROVED") return false;
   const due = new Date(task.dueDate).getTime();
   return due >= Date.now() && due <= Date.now() + 7 * 24 * 60 * 60 * 1000;
 }

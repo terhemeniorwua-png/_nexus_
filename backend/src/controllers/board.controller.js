@@ -1,5 +1,8 @@
 const Task = require("../models/task.model");
 const BoardColumn = require("../models/boardColumn.model");
+const Deliverable = require("../models/deliverable.model");
+const Review = require("../models/review.model");
+const Comment = require("../models/comment.model");
 const WorkspaceMember = require("../models/workspaceMember.model");
 const mongoose = require("mongoose");
 const { ApiError } = require("../middleware/errorHandler");
@@ -12,6 +15,13 @@ const {
   moveTask,
   reindexColumn,
 } = require("../services/board.service");
+const {
+  normalizePriority,
+  normalizeCreationStatus,
+  assertAssigneeInProject,
+  coerceOptionalDate,
+  coerceTagArray,
+} = require("../services/task.service");
 const { recordActivity } = require("../services/activity.service");
 const { createNotification } = require("../services/notification.service");
 const { getIO } = require("../sockets/store");
@@ -140,17 +150,37 @@ async function createTask(req, res, next) {
       effectiveAssignee = req.user._id;
     }
 
+    // Phase 10: statuses normalize into the workflow (e.g. "TO DO" → ASSIGNED)
+    // and the assignee must be an eligible project member.
+    if (effectiveAssignee) {
+      await assertAssigneeInProject({
+        assigneeId: effectiveAssignee,
+        project,
+      });
+    }
+
+    const cleanSubtasks = Array.isArray(subtasks)
+      ? subtasks
+          .filter((s) => s && String(s.title).trim())
+          .map((s) => ({
+            title: String(s.title).trim(),
+            completed: Boolean(s.completed),
+            weight: Number(s.weight) > 0 ? Number(s.weight) : 0,
+          }))
+      : [];
+
     const task = await Task.create({
       projectId: project._id,
+      workspaceId: req.workspace._id,
       columnId: targetColumn._id,
       title: String(title).trim(),
       description: String(description || ""),
-      status: status || "TO DO",
-      priority: priority || "Medium",
+      status: normalizeCreationStatus(status),
+      priority: normalizePriority(priority) || "MEDIUM",
       position,
-      dueDate: dueDate ? new Date(dueDate) : null,
-      tags: Array.isArray(tags) ? tags : tags ? [tags] : [],
-      subtasks: Array.isArray(subtasks) ? subtasks : [],
+      dueDate: coerceOptionalDate(dueDate) || null,
+      tags: coerceTagArray(tags) || [],
+      subtasks: cleanSubtasks,
       assignedTo: effectiveAssignee,
       createdBy: req.user._id,
     });
@@ -193,27 +223,32 @@ async function updateTask(req, res, next) {
     const task = await Task.findById(req.params.taskId);
     if (!task) return next(new ApiError(404, "Task not found"));
 
-    const { title, description, status, priority, dueDate, tags, subtasks, assignedTo } = req.body;
+    const { title, description, priority, dueDate, tags, subtasks, assignedTo } = req.body;
 
     if (title !== undefined) {
       if (!String(title).trim()) return next(new ApiError(400, "Task title cannot be empty"));
       task.title = String(title).trim();
     }
     if (description !== undefined) task.description = String(description);
-    if (status !== undefined && ["TO DO", "IN PROGRESS", "REVIEW", "DONE"].includes(status)) {
-      task.status = status;
-    }
-    if (priority !== undefined && ["Low", "Medium", "High", "Urgent"].includes(priority)) {
-      task.priority = priority;
-    }
-    if (dueDate !== undefined) task.dueDate = dueDate ? new Date(dueDate) : null;
-    if (tags !== undefined) task.tags = Array.isArray(tags) ? tags : [];
+    if (priority !== undefined) task.priority = normalizePriority(priority);
+    if (dueDate !== undefined) task.dueDate = coerceOptionalDate(dueDate) || null;
+    if (tags !== undefined) task.tags = coerceTagArray(tags) || [];
     if (subtasks !== undefined) task.subtasks = Array.isArray(subtasks) ? subtasks : [];
 
+    // Status is governed exclusively by PATCH /api/tasks/:taskId/status —
+    // generic updates never apply a status, which prevents workflow bypass
+    // (e.g. jumping straight to APPROVED).
     const previousAssignee = task.assignedTo ? String(task.assignedTo) : null;
     // Reassignment requires the assign_task permission. Do not trust client input.
     if (assignedTo !== undefined && hasProjectPermission(req.projectRole, "assign_task")) {
-      task.assignedTo = assignedTo || null;
+      const nextAssignee = assignedTo ? String(assignedTo) : null;
+      if (nextAssignee) {
+        await assertAssigneeInProject({
+          assigneeId: nextAssignee,
+          project,
+        });
+      }
+      task.assignedTo = nextAssignee;
     }
 
     await task.save();
@@ -256,6 +291,15 @@ async function deleteTask(req, res, next) {
 
     const task = await Task.findById(req.params.taskId);
     if (!task) return next(new ApiError(404, "Task not found"));
+
+    // Cascade: deliverables of the task, reviews of those deliverables, and
+    // comments on the task. Subtasks are embedded so they die with the task.
+    const deliverables = await Deliverable.find({ taskId: task._id }).distinct("_id");
+    if (deliverables.length) {
+      await Review.deleteMany({ deliverableId: { $in: deliverables } });
+      await Deliverable.deleteMany({ _id: { $in: deliverables } });
+    }
+    await Comment.deleteMany({ taskId: task._id });
 
     await Task.deleteOne({ _id: task._id });
     await reindexColumn(task.columnId);

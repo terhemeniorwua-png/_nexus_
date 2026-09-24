@@ -14,6 +14,16 @@ const {
   updateProject,
   deleteProject,
 } = require("../controllers/project.controller");
+const {
+  listProjectMembers,
+  inviteProjectMember,
+  updateProjectMemberRole,
+  removeProjectMember,
+} = require("../controllers/projectMember.controller");
+const {
+  listProjectTasks,
+  createProjectTask,
+} = require("../controllers/task.controller");
 
 const router = express.Router({ mergeParams: true });
 
@@ -48,5 +58,20 @@ router.use("/:projectId", authenticate, globalProjectAccess);
 router.get("/:projectId", requireProjectPermission("view_project"), getProject);
 router.patch("/:projectId", requireProjectPermission("update_project"), updateProject);
 router.delete("/:projectId", requireProjectPermission("delete_project"), deleteProject);
+
+// Phase 9 — project member management (explicit project access control).
+// Requests pass through globalProjectAccess (via the /:projectId mount),
+// which verifies the requester has ANY role on the project first, then the
+// specific member-management permission is checked below.
+router.get("/:projectId/members", requireProjectPermission("view_project_members"), listProjectMembers);
+router.post("/:projectId/members", requireProjectPermission("invite_project_member"), inviteProjectMember);
+router.patch("/:projectId/members/:userId", requireProjectPermission("invite_project_member"), updateProjectMemberRole);
+router.delete("/:projectId/members/:userId", requireProjectPermission("remove_project_member"), removeProjectMember);
+
+// Phase 10 — project task list / creation. Access is enforced through
+// globalProjectAccess (the /:projectId mount); list is project-scoped and
+// filtered server-side.
+router.get("/:projectId/tasks", requireProjectPermission("view_task"), listProjectTasks);
+router.post("/:projectId/tasks", requireProjectPermission("create_task"), createProjectTask);
 
 module.exports = router;

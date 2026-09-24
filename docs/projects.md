@@ -55,12 +55,27 @@ Delete removes the project plus its tasks, board columns, project memberships, a
 | `GET` | `/api/projects/:projectId` | Detail enriched with team, workspace, manager, and the full member list with roles. 403 when the user has no role on the project. |
 | `PATCH` | `/api/projects/:projectId` | Update + validation (see above). |
 | `DELETE` | `/api/projects/:projectId` | Hard delete + cascade (owner/admin only). |
+| `GET` | `/api/projects/:projectId/members` | List project members with roles (`view_project_members`). |
+| `POST` | `/api/projects/:projectId/members` | Add a member (`invite_project_member`). Invited user must belong to the project's workspace (else **400**); duplicate → **409**; invalid role → **400**; unknown user → **404**. |
+| `PATCH` | `/api/projects/:projectId/members/:userId` | Change a member's role (`invite_project_member`; only owners/admins may assign `PROJECT_MANAGER`, self-promotion → **403**). |
+| `DELETE` | `/api/projects/:projectId/members/:userId` | Remove a member (`remove_project_member`; cannot remove yourself or the manager without owner/admin). |
+
+## Project members
+
+Member access is **explicit only**: a project role comes from a `projectmembers` row (`PROJECT_MANAGER` / `MEMBER` / `VIEWER` / `COLLABORATOR`), not from workspace or team membership. Being on the project's team grants nothing by itself; each project is isolated, so access to one project never implies another.
+
+- **Same-workspace rule**: every added member must already belong to the project's workspace (a `WorkspaceMember` row, or the workspace owner) → otherwise **400** `"User does not belong to this workspace"`.
+- **Cross-team collaboration**: the added member does *not* need to be on the project's team — they just have to share the workspace. Example from the seed: `ada` and `margaret` are `COLLABORATOR` on projects owned by other teams (`docs/authorization.md` §6).
+- **Granting `PROJECT_MANAGER`**: only workspace owners/admins (`canGrantManagerRole`). A project manager can add/remove members and change any non-manager role, but cannot assign or self-promote to manager.
+- Removing a member revokes access immediately (the 403 is enforced server-side on the next request).
+
+Frontend: the project detail page's **Members** panel offers an **Add** button (workspace-member select + role picker), an inline role **select** per member (manager label is pinned for the manager row), and a **remove** action with a confirmation modal. The controls appear only for roles holding `invite_project_member` (`WORKSPACE_OWNER`, `ADMIN`, `PROJECT_MANAGER`); the backend re-checks every request, so the UI gating is cosmetic only. Both the workspace-scoped (`/api/workspaces/:wid/projects/:pid/members`) and global (`/api/projects/:pid/members`) routes share the same controllers.
 
 ## Frontend
 
 - `app/projects` — grid of accessible projects with workspace chip, status/priority badges, manager + team, due date, member count, and a task-progress bar. **Status / priority filters** drive `?status=` / `?priority=` query params (client-side, server-authorized). Empty states for "no projects" and "no filter matches", plus a **New project** action only when `/projects/meta` returns a create-eligible workspace.
 - `app/projects/new` — create form backed by `/projects/meta`: team select grouped by workspace, manager select filtered to the chosen team's workspace (owner/admin/member only), start/due dates, priority.
-- `app/projects/[projectId]` — detail with stat cards (members/tasks/done/due date), members list (manager pinned first with role badges), a Tasks section ("No tasks have been created yet." + **Open board** link to `/workspaces/[workspaceId]/projects/[projectId]/board`), an **Edit** modal (status field included) gated to `update_project`, and a **Delete** confirmation modal gated to `delete_project`. 403 renders a "Private project" state; unknown ids render a "Project not found" state.
+- `app/projects/[projectId]` — detail with stat cards (members/tasks/done/due date), members list (manager pinned first with role badges), **member management** (Add modal, inline role select, remove confirmation — see "Project members" above), a Tasks section ("No tasks have been created yet." + **Open board** link to `/workspaces/[workspaceId]/projects/[projectId]/board`), an **Edit** modal (status field included) gated to `update_project`, and a **Delete** confirmation modal gated to `delete_project`. 403 renders a "Private project" state; unknown ids render a "Project not found" state.
 - Shared pieces: `components/workspace/ProjectForm.jsx` (create + edit, resets per open), `components/workspace/ProjectBadge.jsx` (status/priority pills), `PROJECT_STATUS_META` / `PROJECT_PRIORITY_META` in `lib/workspaceApi.js`, and a **Projects** link in `GlobalNav`.
 
 ## API payloads
@@ -72,5 +87,6 @@ Dates serialize as ISO strings; the API never returns raw Mongo `_id`s (each obj
 ## Tests & seed
 
 - `backend/test/projects.test.js` — 39 tests against `nexus_projects_test`. Fixtures: workspace A (ada owner, alan admin, linus/margaret members, barbara viewer; engineering/research teams; "Nexus Platform Build" with alan PM + member rows) and workspace B (outsider owner, grace member + PM on "Other Project", ada also member). Covers every create/update validation branch, authorized list/filtering, team-filter authorization, id-manipulation isolation, manager handoff, the delete matrix, delete cascade, and `/meta`.
-- Full suite: **88 passing** (`cd backend && npm test`).
+- `backend/test/projectAccess.test.js` — 12 tests against `nexus_projectaccess_test` covering the Phase 9 access model (403 without a row, explicit + cross-team collaborators, isolation, duplicate 409, unauthorized manage 403, unknown user 404, cross-workspace 400, invalid role 400, unauthenticated 401, IDOR 403).
+- Full suite: **100 passing** (`cd backend && npm test`).
 - `npm run db:seed` — now 7 projects / 13 project memberships (see `docs/authorization.md` §6 for the Phase 8 personas).

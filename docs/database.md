@@ -156,7 +156,7 @@ Workspace-level membership (kept from the existing app). Distinct from team and 
 
 ### projectmembers
 
-Project membership **controls access to a private project**. A workspace/team/workspace membership does granting access.
+Project membership **controls access to a private project**. A workspace/team/workspace membership does granting access. Since Phase 9, an invited user must also belong to the project's **workspace** (a `workspacemembers` row or the workspace owner); team membership is **not** required, so cross-team collaborators are allowed.
 
 | Field      | Type     | Notes                                          |
 |------------|----------|------------------------------------------------|

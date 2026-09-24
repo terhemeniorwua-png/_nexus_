@@ -83,7 +83,13 @@ const PROJECT_ACTIONS = Object.freeze([
   "delete_task",
   "assign_task",
   "create_subtask",
+  "update_subtask",
+  "delete_subtask",
   "complete_subtask",
+  "submit_task",
+  "review_task",
+  "approve_task",
+  "request_task_changes",
   "view_deliverable",
   "upload_deliverable",
   "review_deliverable",
@@ -146,7 +152,13 @@ const PROJECT_MANAGER_ACTIONS = Object.freeze([
   "delete_task",
   "assign_task",
   "create_subtask",
+  "update_subtask",
+  "delete_subtask",
   "complete_subtask",
+  "submit_task",
+  "review_task",
+  "approve_task",
+  "request_task_changes",
   "view_deliverable",
   "upload_deliverable",
   "review_deliverable",
@@ -172,7 +184,10 @@ const MEMBER_ACTIONS = Object.freeze([
   "view_task",
   "update_task", // restricted to tasks assigned to the user (taskOwnership middleware)
   "create_subtask",
+  "update_subtask",
+  "delete_subtask",
   "complete_subtask",
+  "submit_task", // worker transitions: assignee-only (IN_PROGRESS → SUBMITTED)
   "view_deliverable",
   "upload_deliverable", // restricted to deliverables of the user's assigned tasks
   "view_project_members",
@@ -199,7 +214,10 @@ const COLLABORATOR_ACTIONS = Object.freeze([
   "view_task",
   "update_task", // restricted to tasks assigned to the user (taskOwnership middleware)
   "create_subtask",
+  "update_subtask",
+  "delete_subtask",
   "complete_subtask",
+  "submit_task", // worker transitions: assignee-only (IN_PROGRESS → SUBMITTED)
   "view_deliverable",
   "upload_deliverable", // restricted to deliverables of the user's assigned tasks
   "view_project_members",

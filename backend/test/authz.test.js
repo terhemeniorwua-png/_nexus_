@@ -122,6 +122,7 @@ async function buildFixtures() {
   state.platformId = String(platform._id);
   state.benchmarkId = String(benchmark._id);
   state.designSystemId = String(designSystem._id);
+  state.adaId = String(users.ada._id);
 
   await ProjectMember.insertMany([
     { projectId: platform._id, userId: users.alan._id, role: "PROJECT_MANAGER" },
@@ -432,12 +433,14 @@ test("task creation respects project permissions and the assign_task gate", asyn
   assert.equal(memberCreate.status, 403);
 
   // PROJECT_MANAGER may create tasks and assign them to other people.
+  // (Phase 10 rule: the assignee must be a member of the project, so the PM
+  // assigns the benchmark collaborator ada rather than off-project margaret.)
   const pmCreate = await api("POST", `${projectUrl(state.benchmarkId)}/tasks`, {
     cookie: cookies.katherine,
-    body: { title: "PM-created task", status: "TO DO", assignedTo: state.margaretId },
+    body: { title: "PM-created task", status: "TO DO", assignedTo: state.adaId },
   });
   assert.equal(pmCreate.status, 201);
-  assert.equal(String(pmCreate.json.task.assignedTo.id), state.margaretId);
+  assert.equal(String(pmCreate.json.task.assignedTo.id), state.adaId);
 });
 
 test("task ownership restricts update to assignee/creator for members", async () => {
@@ -544,13 +547,13 @@ test("reassignment requires assign_task and is otherwise ignored", async () => {
   assert.equal(margaretReassign.status, 200);
   assert.equal(String(margaretReassign.json.task.assignedTo.id), state.margaretId);
 
-  // alan (PROJECT_MANAGER) can reassign to someone else.
+  // alan (PROJECT_MANAGER) can reassign to another project member.
   const pmReassign = await api("PATCH", `${projectUrl(state.platformId)}/tasks/${state.authTaskId}`, {
     cookie: cookies.alan,
-    body: { assignedTo: state.katherineId },
+    body: { assignedTo: state.linusId },
   });
   assert.equal(pmReassign.status, 200);
-  assert.equal(String(pmReassign.json.task.assignedTo.id), state.katherineId);
+  assert.equal(String(pmReassign.json.task.assignedTo.id), state.linusId);
 });
 
 // ---------------------------------------------------------------------------
