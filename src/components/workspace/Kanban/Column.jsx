@@ -5,7 +5,7 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import TaskCard from "./TaskCard";
 import { PlusIcon } from "../icons";
 
-export default function Column({ column, onAddTask, onOpenTask }) {
+export default function Column({ column, canManage = false, onAddTask, onOpenTask }) {
   const { setNodeRef } = useDroppable({
     id: column.id,
     data: { type: "Column", column },
@@ -25,14 +25,18 @@ export default function Column({ column, onAddTask, onOpenTask }) {
             {column.tasks.length}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={() => onAddTask && onAddTask(column.id)}
-          aria-label={`Add task to ${column.name}`}
-          className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-white/5 hover:text-white"
-        >
-          <PlusIcon size={15} />
-        </button>
+        {canManage ? (
+          <button
+            type="button"
+            onClick={() => onAddTask && onAddTask(column.id)}
+            aria-label={`Add task to ${column.name}`}
+            className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-white/5 hover:text-white"
+          >
+            <PlusIcon size={15} />
+          </button>
+        ) : (
+          <span className="inline-block w-[26px]" aria-hidden="true" />
+        )}
       </div>
 
       <div

@@ -20,11 +20,12 @@ function Field({ label, children }) {
   );
 }
 
-function Select({ value, onChange, children, className = "" }) {
+function Select({ value, onChange, children, className = "", disabled = false }) {
   return (
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
       className={`ws-input h-10 w-full rounded-lg px-3 text-[13.5px] ${className}`}
     >
       {children}
@@ -47,6 +48,9 @@ export default function TaskModal({
   onDeleted,
 }) {
   const { run, loading } = useMutation();
+
+  const canManage = ["WORKSPACE_OWNER", "ADMIN", "PROJECT_MANAGER"].includes(role);
+  const canComment = canManage || role === "MEMBER";
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -190,7 +194,12 @@ export default function TaskModal({
             </Select>
           </Field>
           <Field label="Assignee">
-            <Select value={assignedTo} onChange={setAssignedTo}>
+            <Select
+              value={assignedTo}
+              onChange={setAssignedTo}
+              disabled={!canManage}
+              className={!canManage ? "opacity-50" : ""}
+            >
               <option value="">Unassigned</option>
               {members.map((m) => (
                 <option key={m.user?.id || m.id} value={m.user?.id}>
@@ -288,8 +297,8 @@ export default function TaskModal({
             workspaceId={workspaceId}
             projectId={projectId}
             taskId={task.id}
-            isAdmin={role === "Admin"}
-            canComment={role === "Admin" || role === "Member"}
+            isAdmin={canManage}
+            canComment={canComment}
           />
         )}
 
@@ -300,7 +309,7 @@ export default function TaskModal({
         )}
 
         <div className="flex items-center justify-between gap-3 pt-1">
-          {task ? (
+          {task && canManage ? (
             <button
               type="button"
               onClick={handleDelete}

@@ -413,8 +413,8 @@ test("project listing is filtered by accessibility", async () => {
 
   // Roles attached per project.
   const res = await api("GET", `${ws(state.workspaceId)}/projects`, { cookie: cookies.margaret });
-  const platform = res.json.projects.find((p) => p._id === state.platformId);
-  const design = res.json.projects.find((p) => p._id === state.designSystemId);
+  const platform = res.json.projects.find((p) => p.id === state.platformId);
+  const design = res.json.projects.find((p) => p.id === state.designSystemId);
   assert.equal(platform.role, "MEMBER");
   assert.equal(design.role, "COLLABORATOR");
 });
@@ -423,22 +423,21 @@ test("project listing is filtered by accessibility", async () => {
 // Task-level permissions
 // ---------------------------------------------------------------------------
 
-test("task creation respects the assign_task gate", async () => {
-  // MEMBER cannot assign a task to someone else — it falls back to the creator.
+test("task creation respects project permissions and the assign_task gate", async () => {
+  // MEMBER cannot create tasks at all.
   const memberCreate = await api("POST", `${projectUrl(state.platformId)}/tasks`, {
     cookie: cookies.margaret,
     body: { title: "Member-created task", status: "TO DO", assignedTo: state.linusId },
   });
-  assert.equal(memberCreate.status, 201);
-  assert.equal(String(memberCreate.json.task.assignedTo._id || memberCreate.json.task.assignedTo), state.margaretId);
+  assert.equal(memberCreate.status, 403);
 
-  // PROJECT_MANAGER may assign to other people.
+  // PROJECT_MANAGER may create tasks and assign them to other people.
   const pmCreate = await api("POST", `${projectUrl(state.benchmarkId)}/tasks`, {
     cookie: cookies.katherine,
     body: { title: "PM-created task", status: "TO DO", assignedTo: state.margaretId },
   });
   assert.equal(pmCreate.status, 201);
-  assert.equal(String(pmCreate.json.task.assignedTo._id || pmCreate.json.task.assignedTo), state.margaretId);
+  assert.equal(String(pmCreate.json.task.assignedTo.id), state.margaretId);
 });
 
 test("task ownership restricts update to assignee/creator for members", async () => {
@@ -457,39 +456,6 @@ test("task ownership restricts update to assignee/creator for members", async ()
   assert.equal(other.status, 403);
   assert.match(other.json.message, /only modify tasks assigned to you/i);
 });
-
-test("reassignment requires assign_task and is otherwise ignored", async () => {
-  // linus is the assignee of socketTask; MEMBER → cannot reassign. Response keeps linus.
-  const memberReassign = await api("PATCH", `${projectUrl(state.platformId)}/tasks/${state.socketTaskId}`, {
-    cookie: cookies.linus,
-    body: { assignedTo: state.margaretId },
-  });
-  assert.equal(memberReassign.status, 200);
-  const kept = String(memberReassign.json.task.assignedTo._id || memberReassign.json.task.assignedTo);
-  assert.equal(kept, state.linusId);
-
-  // margaret (MEMBER, assignee of authTask) cannot reassign a task either.
-  const margaretReassign = await api("PATCH", `${projectUrl(state.platformId)}/tasks/${state.authTaskId}`, {
-    cookie: cookies.margaret,
-    body: { assignedTo: state.linusId },
-  });
-  assert.equal(margaretReassign.status, 200);
-  const margaretKept = String(margaretReassign.json.task.assignedTo._id || margaretReassign.json.task.assignedTo);
-  assert.equal(margaretKept, state.margaretId);
-
-  // alan (PROJECT_MANAGER) can reassign.
-  const pmReassign = await api("PATCH", `${projectUrl(state.platformId)}/tasks/${state.authTaskId}`, {
-    cookie: cookies.alan,
-    body: { assignedTo: state.katherineId },
-  });
-  assert.equal(pmReassign.status, 200);
-  const moved = String(pmReassign.json.task.assignedTo._id || pmReassign.json.task.assignedTo);
-  assert.equal(moved, state.katherineId);
-});
-
-// ---------------------------------------------------------------------------
-// Deliverables
-// ---------------------------------------------------------------------------
 
 test("deliverable submission requires upload permission plus task ownership", async () => {
   // margaret is the current assignee of authTask (submitted earlier) → allowed.
@@ -554,6 +520,37 @@ test("Viewer can read deliverables but cannot submit or review", async () => {
     body: { title: "Nope", fileUrl: "https://example.test/x.pdf" },
   });
   assert.equal(submit.status, 403);
+});
+
+// ---------------------------------------------------------------------------
+// Reassignment (runs after the deliverable review tests so margaret is still
+// the assignee of authTask when the submission test above ran)
+// ---------------------------------------------------------------------------
+
+test("reassignment requires assign_task and is otherwise ignored", async () => {
+  // linus is the assignee of socketTask; MEMBER → cannot reassign. Response keeps linus.
+  const memberReassign = await api("PATCH", `${projectUrl(state.platformId)}/tasks/${state.socketTaskId}`, {
+    cookie: cookies.linus,
+    body: { assignedTo: state.margaretId },
+  });
+  assert.equal(memberReassign.status, 200);
+  assert.equal(String(memberReassign.json.task.assignedTo.id), state.linusId);
+
+  // margaret (MEMBER, assignee of authTask) cannot reassign a task either.
+  const margaretReassign = await api("PATCH", `${projectUrl(state.platformId)}/tasks/${state.authTaskId}`, {
+    cookie: cookies.margaret,
+    body: { assignedTo: state.linusId },
+  });
+  assert.equal(margaretReassign.status, 200);
+  assert.equal(String(margaretReassign.json.task.assignedTo.id), state.margaretId);
+
+  // alan (PROJECT_MANAGER) can reassign to someone else.
+  const pmReassign = await api("PATCH", `${projectUrl(state.platformId)}/tasks/${state.authTaskId}`, {
+    cookie: cookies.alan,
+    body: { assignedTo: state.katherineId },
+  });
+  assert.equal(pmReassign.status, 200);
+  assert.equal(String(pmReassign.json.task.assignedTo.id), state.katherineId);
 });
 
 // ---------------------------------------------------------------------------
@@ -654,7 +651,7 @@ test("task reorder respects project access and ownership", async () => {
 test("document listing hides project-scoped documents the user cannot access", async () => {
   const res = await api("GET", `${ws(state.workspaceId)}/documents`, { cookie: cookies.margaret });
   assert.equal(res.status, 200);
-  const ids = res.json.documents.map((d) => String(d._id));
+  const ids = res.json.documents.map((d) => String(d.id));
   assert.ok(ids.includes(state.platformDocId), "should include the platform doc");
   assert.ok(ids.includes(state.designDocId), "should include the design doc");
   assert.ok(!ids.includes(state.benchmarkDocId), "must NOT expose the benchmark doc");

@@ -1,6 +1,10 @@
 "use strict";
 
 const mongoose = require("mongoose");
+const Workspace = require("../models/workspace.model");
+const WorkspaceMember = require("../models/workspaceMember.model");
+const Team = require("../models/team.model");
+const TeamMember = require("../models/teamMember.model");
 const Project = require("../models/project.model");
 const Task = require("../models/task.model");
 const Document = require("../models/document.model");

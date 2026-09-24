@@ -64,6 +64,9 @@ function moveAcross(columns, activeId, overId, isOverTask) {
 }
 
 export default function Board({ workspaceId, projectId, members, role = "" }) {
+  const canManage = ["WORKSPACE_OWNER", "ADMIN", "PROJECT_MANAGER"].includes(role);
+  const canEdit = canManage || role === "MEMBER" || role === "COLLABORATOR";
+
   const { data: boardData, loading, refetch } = useResource(
     `/workspaces/${workspaceId}/projects/${projectId}/board`
   );
@@ -133,6 +136,8 @@ export default function Board({ workspaceId, projectId, members, role = "" }) {
   );
 
   function handleDragStart(event) {
+    // Viewers are read-only: no drag, no overlay.
+    if (!canEdit) return;
     const task = columnsRef.current
       .flatMap((col) => col.tasks)
       .find((t) => String(t.id) === String(event.active.id));
@@ -140,6 +145,7 @@ export default function Board({ workspaceId, projectId, members, role = "" }) {
   }
 
   function handleDragOver(event) {
+    if (!canEdit) return;
     const { active, over } = event;
     if (!over) return;
 
@@ -225,6 +231,7 @@ export default function Board({ workspaceId, projectId, members, role = "" }) {
             <Column
               key={column.id}
               column={column}
+              canManage={canManage}
               onAddTask={(columnId) => {
                 const col = columns.find((c) => c.id === columnId);
                 setModal({ type: "create", columnId, status: col?.name });
