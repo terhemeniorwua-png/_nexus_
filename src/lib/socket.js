@@ -1,4 +1,3 @@
-// lib/websocket.js (or utils/websocket.js)
 import { io } from "socket.io-client";
 import { SOCKET_URL } from "@/lib/workspaceApi";
 
@@ -7,25 +6,44 @@ let socket = null;
 export function getSocket() {
   if (typeof window === "undefined") return null;
 
-  if (!socket) {
-    // 1. Retrieve the token stored when the user logs in
-    const token = localStorage.getItem("token") || localStorage.getItem("accessToken");
+  // Retrieve token from localStorage
+  const token = 
+    localStorage.getItem("token") || 
+    localStorage.getItem("accessToken") || 
+    localStorage.getItem("jwt");
 
-    socket = io(SOCKET_URL, {
-      auth: {
-        token: token ? `Bearer ${token}` : "",
-      },
-      withCredentials: true,
-      transports: ["polling", "websocket"], // Polling first prevents immediate WebSocket connection drops
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-    });
-
-    // 2. Log connection errors (like Auth failures) directly to your console
-    socket.on("connect_error", (err) => {
-      console.error("Socket Auth Error:", err.message);
-    });
+  // 1. DO NOT connect if the user is not authenticated yet (e.g. on /login page)
+  if (!token) {
+    if (socket) {
+      socket.disconnect();
+      socket = null;
+    }
+    return null;
   }
+
+  // 2. Return existing socket if already initialized
+  if (socket) {
+    return socket;
+  }
+
+  // 3. Only attempt connection when a valid token is present
+  socket = io(SOCKET_URL, {
+    auth: {
+      token: token.startsWith("Bearer ") ? token : `Bearer ${token}`,
+    },
+    withCredentials: true,
+    transports: ["polling", "websocket"],
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+  });
+
+  socket.on("connect", () => {
+    console.log("[Socket] Connected successfully with ID:", socket.id);
+  });
+
+  socket.on("connect_error", (err) => {
+    console.error("Socket Auth Error:", err.message);
+  });
 
   return socket;
 }

@@ -3,6 +3,11 @@ const { applyTransforms } = require("../utils/serialize");
 
 const TYPES = [
   "TASK_ASSIGNED",
+  "TASK_COMPLETED",
+  "DELIVERABLE_SUBMITTED",
+  "DELIVERABLE_REVIEWED",
+  "PROJECT_INVITATION",
+  "COMMENT_MENTION",
   "MENTION",
   "TASK_MOVED",
   "MEMBER_ADDED",
@@ -50,6 +55,16 @@ const notificationSchema = new mongoose.Schema(
     read: {
       type: Boolean,
       default: false,
+      index: true,
+    },
+    entityType: {
+      type: String,
+      enum: ["project", "task", "subtask", "deliverable", "review", "comment", "member", "channel", "workspace"],
+      default: null,
+    },
+    entityId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
       index: true,
     },
   },

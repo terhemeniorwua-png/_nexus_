@@ -4,10 +4,11 @@ import { GradientMesh } from "@/components/landing/GradientMesh";
 
 export function AuthLayout({ title, subtitle, footer, children }) {
   return (
-    <div className="landing-root relative flex min-h-dvh flex-col items-center justify-center px-4 py-12 text-zinc-100">
+    <div className="landing-root relative flex h-dvh flex-col items-center overflow-y-auto px-4 py-12 text-zinc-100">
       <GradientMesh />
 
-      <div className="relative z-10 mb-8 flex justify-center">
+      <div className="relative z-10 my-auto flex flex-col items-center">
+        <div className="mb-8 flex justify-center">
         <Link
           href="/"
           aria-label="Back to welcome page"
@@ -25,7 +26,7 @@ export function AuthLayout({ title, subtitle, footer, children }) {
         </Link>
       </div>
 
-      <div className="hero-card relative z-10 w-full max-w-[420px] rounded-2xl border border-white/10 p-7 sm:p-9">
+      <div className="hero-card relative z-10 mb-auto w-full max-w-[420px] rounded-2xl border border-white/10 p-7 sm:p-9">
         <header className="mb-7">
           <h1 className="text-xl font-semibold tracking-tight text-zinc-50">
             {title}
@@ -40,6 +41,7 @@ export function AuthLayout({ title, subtitle, footer, children }) {
             {footer}
           </div>
         )}
+      </div>
       </div>
     </div>
   );

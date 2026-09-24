@@ -9,6 +9,17 @@ const channelSchema = new mongoose.Schema(
       trim: true,
       maxlength: [80, "Channel name cannot exceed 80 characters"],
     },
+    description: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: [500, "Description cannot exceed 500 characters"],
+    },
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Project",
+      default: null,
+    },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },
   { _id: true }

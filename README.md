@@ -3614,3 +3614,9 @@ ANALYTICS
 
 This allows Nexus to function as a complete collaborative project execution platform rather than simply a CRUD-based task management application.
 
+
+
+
+
+
+//so , structure the backend this way, store clients in this category on mango db, the person who create the account can create a workspace his role then he can manage the workspace. he can set a team lead. the team lead can maitain the project, share task, 

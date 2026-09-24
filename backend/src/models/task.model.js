@@ -1,8 +1,8 @@
 const mongoose = require("mongoose");
 const { applyTransforms } = require("../utils/serialize");
 
-const STATUSES = ["TO DO", "IN PROGRESS", "REVIEW", "DONE"];
-const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
+const STATUSES = ["TO DO", "IN PROGRESS", "REVIEW", "DONE", "ASSIGNED", "SUBMITTED", "UNDER_REVIEW", "CHANGES_REQUESTED", "APPROVED", "BLOCKED"];
+const PRIORITIES = ["Low", "Medium", "High", "Urgent", "LOW", "MEDIUM", "HIGH", "URGENT"];
 
 const subtaskSchema = new mongoose.Schema(
   {
@@ -15,6 +15,12 @@ const subtaskSchema = new mongoose.Schema(
     completed: {
       type: Boolean,
       default: false,
+    },
+    weight: {
+      type: Number,
+      default: 0,
+      min: [0, "Weight cannot be negative"],
+      max: [100, "Weight cannot exceed 100"],
     },
   },
   { _id: true }

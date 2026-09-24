@@ -1,0 +1,378 @@
+const dotenv = require("dotenv");
+const path = require("path");
+const mongoose = require("mongoose");
+const bcrypt = require("bcrypt");
+
+dotenv.config({ path: path.join(__dirname, "..", "..", ".env") });
+
+const User = require("../models/user.model");
+const Workspace = require("../models/workspace.model");
+const WorkspaceMember = require("../models/workspaceMember.model");
+const Team = require("../models/team.model");
+const TeamMember = require("../models/teamMember.model");
+const Project = require("../models/project.model");
+const ProjectMember = require("../models/projectMember.model");
+const ProjectResource = require("../models/projectResource.model");
+const BoardColumn = require("../models/boardColumn.model");
+const Task = require("../models/task.model");
+const Deliverable = require("../models/deliverable.model");
+const Review = require("../models/review.model");
+const Comment = require("../models/comment.model");
+const Notification = require("../models/notification.model");
+const Activity = require("../models/activity.model");
+const Conversation = require("../models/conversation.model");
+const ConversationMember = require("../models/conversationMember.model");
+const Message = require("../models/message.model");
+const ProfileView = require("../models/profileView.model");
+const ProjectView = require("../models/projectView.model");
+
+const MODELS = [
+  User,
+  Workspace,
+  WorkspaceMember,
+  Team,
+  TeamMember,
+  Project,
+  ProjectMember,
+  ProjectResource,
+  BoardColumn,
+  Task,
+  Deliverable,
+  Review,
+  Comment,
+  Notification,
+  Activity,
+  Conversation,
+  ConversationMember,
+  Message,
+  ProfileView,
+  ProjectView,
+];
+
+async function ensureIndexes() {
+  for (const model of MODELS) {
+    await model.init();
+    const indexes = model.schema.indexes();
+    const custom = indexes.filter(([fields]) => !(fields._id && Object.keys(fields).length === 1));
+    if (custom.length) {
+      await model.createIndexes();
+      console.log(`[indexes] ${model.collection.name} — ${custom.length} index(es) ensured`);
+    } else {
+      console.log(`[indexes] ${model.collection.name} — no custom indexes`);
+    }
+  }
+}
+
+async function runSeed() {
+  const uri = process.env.MONGO_URI;
+  if (!uri) throw new Error("Missing MONGO_URI in environment variables.");
+
+  await mongoose.connect(uri, { serverSelectionTimeoutMS: 5000 });
+
+  console.log(`[seed] Connected to ${uri}`);
+
+  // Fresh start — drop every collection this schema owns so the seed is reproducible.
+  for (const model of MODELS) {
+    try {
+      await model.collection.drop();
+    } catch {
+      // Collection may not exist yet — that's fine.
+    }
+  }
+  await ensureIndexes();
+
+  const saltRounds = Number(process.env.SALT_ROUNDS) || 10;
+  const password = await bcrypt.hash("Password123!", saltRounds);
+
+  // ------------------------------------------------------------------ USERS
+  const users = await User.insertMany([
+    { name: "Ada Lovelace", email: "ada@example.com", password },
+    { name: "Alan Turing", email: "alan@example.com", password },
+    { name: "Grace Hopper", email: "grace@example.com", password },
+    { name: "Katherine Johnson", email: "katherine@example.com", password },
+    { name: "Linus Torvalds", email: "linus@example.com", password },
+    { name: "Barbara Liskov", email: "barbara@example.com", password },
+    { name: "Margaret Hamilton", email: "margaret@example.com", password },
+  ]);
+
+  const [ada, alan, grace, katherine, linus, barbara, margaret] = users.map((u) => u._id);
+
+  // ----------------------------------------------------------- WORKSPACE
+  const workspace = await Workspace.create({
+    name: "Acme Research Workspace",
+    description: "Development workspace for the Nexus demo",
+    ownerId: ada,
+  });
+
+  // Workspace memberships mirror the requested hierarchy.
+  await WorkspaceMember.insertMany([
+    { workspaceId: workspace._id, userId: ada, role: "Admin" },
+    { workspaceId: workspace._id, userId: alan, role: "Admin" },
+    { workspaceId: workspace._id, userId: grace, role: "Member" },
+    { workspaceId: workspace._id, userId: katherine, role: "Member" },
+    { workspaceId: workspace._id, userId: linus, role: "Member" },
+    { workspaceId: workspace._id, userId: barbara, role: "Viewer" },
+    { workspaceId: workspace._id, userId: margaret, role: "Member" },
+  ]);
+
+  // ----------------------------------------------------------------- TEAMS
+  const teams = await Team.insertMany([
+    { workspaceId: workspace._id, name: "Research", description: "Core research and data gathering" },
+    { workspaceId: workspace._id, name: "Engineering", description: "Builds the platform" },
+    { workspaceId: workspace._id, name: "Design", description: "Product and UX design" },
+  ]);
+
+  const [researchTeam, engineeringTeam, designTeam] = teams.map((t) => t._id);
+
+  await TeamMember.insertMany([
+    { teamId: researchTeam, userId: ada, role: "TEAM_LEAD" },
+    { teamId: researchTeam, userId: katherine, role: "MEMBER" },
+    { teamId: engineeringTeam, userId: alan, role: "TEAM_LEAD" },
+    { teamId: engineeringTeam, userId: linus, role: "MEMBER" },
+    { teamId: engineeringTeam, userId: margaret, role: "MEMBER" },
+    { teamId: designTeam, userId: grace, role: "TEAM_LEAD" },
+    { teamId: designTeam, userId: barbara, role: "MEMBER" },
+  ]);
+
+  // --------------------------------------------------------------- PROJECTS
+  const projects = await Project.insertMany([
+    {
+      workspaceId: workspace._id,
+      teamId: engineeringTeam,
+      name: "Nexus Platform Build",
+      description: "Core platform implementation for the Nexus demo",
+      status: "ACTIVE",
+      priority: "HIGH",
+      managerId: alan,
+      startDate: new Date("2026-01-01"),
+      dueDate: new Date("2026-12-31"),
+      createdBy: ada,
+    },
+    {
+      workspaceId: workspace._id,
+      teamId: researchTeam,
+      name: "LLM Benchmarking Study",
+      description: "Research project benchmarking large language models",
+      status: "PLANNING",
+      priority: "MEDIUM",
+      managerId: katherine,
+      startDate: new Date("2026-03-01"),
+      dueDate: null,
+      createdBy: ada,
+    },
+    {
+      workspaceId: workspace._id,
+      teamId: designTeam,
+      name: "Design System Refresh",
+      description: "Redesign of the Nexus component library",
+      status: "ACTIVE",
+      priority: "LOW",
+      managerId: grace,
+      startDate: new Date("2026-02-01"),
+      dueDate: new Date("2026-06-30"),
+      createdBy: ada,
+    },
+  ]);
+
+  const [platformProject, benchmarkProject, designSystemProject] = projects.map((p) => p._id);
+
+  // -------------------------------------------------------- PROJECT MEMBERS
+  await ProjectMember.insertMany([
+    { projectId: platformProject, userId: alan, role: "PROJECT_MANAGER" },
+    { projectId: platformProject, userId: linus, role: "MEMBER" },
+    { projectId: platformProject, userId: margaret, role: "COLLABORATOR" },
+    { projectId: benchmarkProject, userId: katherine, role: "PROJECT_MANAGER" },
+    { projectId: benchmarkProject, userId: ada, role: "COLLABORATOR" },
+    { projectId: designSystemProject, userId: grace, role: "PROJECT_MANAGER" },
+    { projectId: designSystemProject, userId: barbara, role: "VIEWER" },
+  ]);
+
+  // ------------------------------------------------------- PROJECT RESOURCES
+  await ProjectResource.insertMany([
+    { projectId: platformProject, name: "MDN", url: "https://developer.mozilla.org", category: "DEVELOPMENT", description: "Web platform reference", createdBy: alan },
+    { projectId: platformProject, name: "GitHub", url: "https://github.com", category: "DEVELOPMENT", description: "Source control", createdBy: alan },
+    { projectId: benchmarkProject, name: "ChatGPT", url: "https://chatgpt.com", category: "AI", description: "LLM playground", createdBy: katherine },
+    { projectId: benchmarkProject, name: "Google Scholar", url: "https://scholar.google.com", category: "RESEARCH", description: "Academic search", createdBy: katherine },
+    { projectId: designSystemProject, name: "Figma", url: "https://figma.com", category: "DESIGN", description: "Design collaboration", createdBy: grace },
+  ]);
+
+  // ------------------------------------------------------------ BOARD COLUMNS
+  const columns = await BoardColumn.insertMany([
+    { projectId: platformProject, name: "TO DO", position: 0 },
+    { projectId: platformProject, name: "IN PROGRESS", position: 1 },
+    { projectId: platformProject, name: "REVIEW", position: 2 },
+    { projectId: platformProject, name: "DONE", position: 3 },
+    { projectId: benchmarkProject, name: "TO DO", position: 0 },
+    { projectId: benchmarkProject, name: "IN PROGRESS", position: 1 },
+    { projectId: benchmarkProject, name: "REVIEW", position: 2 },
+    { projectId: benchmarkProject, name: "DONE", position: 3 },
+    { projectId: designSystemProject, name: "TO DO", position: 0 },
+    { projectId: designSystemProject, name: "IN PROGRESS", position: 1 },
+    { projectId: designSystemProject, name: "REVIEW", position: 2 },
+    { projectId: designSystemProject, name: "DONE", position: 3 },
+  ]);
+
+  const [todoPlat, inprogressPlat, reviewPlat, , todoBench, , , , todoDesign, inprogressDesign] = columns.map((c) => c._id);
+
+  // ------------------------------------------------------------------ TASKS
+  const tasks = await Task.insertMany([
+    {
+      projectId: platformProject,
+      columnId: inprogressPlat,
+      title: "Design authentication flow",
+      description: "Document and spec the login/register flows",
+      assignedTo: margaret,
+      status: "IN PROGRESS",
+      priority: "High",
+      dueDate: new Date("2026-04-01"),
+      position: 0,
+      subtasks: [
+        { title: "Research options", completed: true, weight: 20 },
+        { title: "Draft flows", completed: true, weight: 50 },
+        { title: "Write spec", completed: false, weight: 30 },
+      ],
+      createdBy: alan,
+    },
+    {
+      projectId: platformProject,
+      columnId: inprogressPlat,
+      title: "Implement Socket.IO auth",
+      description: "Wire JWT auth into the socket handshake",
+      assignedTo: linus,
+      status: "IN PROGRESS",
+      priority: "Urgent",
+      dueDate: new Date("2026-04-15"),
+      position: 1,
+      subtasks: [
+        { title: "Middleware", completed: true, weight: 40 },
+        { title: "Client auth payload", completed: true, weight: 40 },
+        { title: "Reconnect handling", completed: false, weight: 20 },
+      ],
+      createdBy: alan,
+    },
+    {
+      projectId: benchmarkProject,
+      columnId: todoBench,
+      title: "Collect benchmark datasets",
+      description: "Gather public datasets for the study",
+      assignedTo: katherine,
+      status: "TO DO",
+      priority: "Medium",
+      dueDate: null,
+      position: 2,
+      subtasks: [],
+      createdBy: ada,
+    },
+    {
+      projectId: designSystemProject,
+      columnId: inprogressDesign,
+      title: "Refresh button tokens",
+      description: "Update color and spacing tokens for buttons",
+      assignedTo: grace,
+      status: "REVIEW",
+      priority: "Low",
+      dueDate: new Date("2026-05-01"),
+      position: 3,
+      subtasks: [],
+      createdBy: barbara,
+    },
+  ]);
+
+  const [authTask, socketTask, dataTask, buttonTask] = tasks.map((t) => t._id);
+
+  // Subtask weights are embedded per existing board model; total-to-100%
+  // is enforced in the service layer (documented in docs/database.md).
+
+  // ----------------------------------------------------------- DELIVERABLES
+  const deliverable = await Deliverable.create({
+    taskId: authTask,
+    submittedBy: margaret,
+    title: "Auth spec (v1)",
+    description: "First draft of the authentication specification",
+    fileUrl: "https://example.com/auth-spec-v1.pdf",
+    version: 1,
+    status: "SUBMITTED",
+    submittedAt: new Date("2026-02-10"),
+  });
+
+  // ----------------------------------------------------------------- REVIEWS
+  await Review.create({
+    deliverableId: deliverable._id,
+    reviewerId: alan,
+    decision: "CHANGES_REQUESTED",
+    feedback: "Clarify the token refresh flow before v2.",
+    reviewedAt: new Date("2026-02-12"),
+  });
+
+  // ---------------------------------------------------------------- COMMENTS
+  await Comment.insertMany([
+    { taskId: authTask, projectId: null, userId: margaret, content: "Should tokens rotate on refresh?" },
+    { taskId: socketTask, projectId: null, userId: linus, content: "Reconnection is handled by socket.io-client." },
+    { taskId: dataTask, projectId: null, userId: katherine, content: "Waiting on dataset access approval." },
+  ]);
+
+  // ---------------------------------------------------------- NOTIFICATIONS
+  await Notification.insertMany([
+    { userId: margaret, actorId: alan, workspaceId: workspace._id, type: "TASK_ASSIGNED", title: "You were assigned a task", body: "Design authentication flow", link: `/workspaces/${workspace._id}`, entityType: "task", entityId: authTask },
+    { userId: linus, actorId: alan, workspaceId: workspace._id, type: "TASK_ASSIGNED", title: "You were assigned a task", body: "Implement Socket.IO auth", link: `/workspaces/${workspace._id}`, entityType: "task", entityId: socketTask },
+    { userId: margaret, actorId: alan, workspaceId: workspace._id, type: "DELIVERABLE_REVIEWED", title: "Your deliverable was reviewed", body: "Clarify the token refresh flow", link: `/workspaces/${workspace._id}`, entityType: "deliverable", entityId: deliverable._id, read: false },
+  ]);
+
+  // ---------------------------------------------------------- ACTIVITY LOG
+  await Activity.insertMany([
+    { workspaceId: workspace._id, projectId: platformProject, userId: alan, action: "TASK_CREATED", targetType: "task", targetId: authTask, metadata: { taskTitle: "Design authentication flow" } },
+    { workspaceId: workspace._id, projectId: platformProject, userId: alan, action: "TASK_STARTED", targetType: "task", targetId: socketTask, metadata: { taskTitle: "Implement Socket.IO auth" } },
+    { workspaceId: workspace._id, projectId: benchmarkProject, userId: ada, action: "PROJECT_CREATED", targetType: "project", targetId: benchmarkProject, metadata: { projectName: "LLM Benchmarking Study" } },
+    { workspaceId: workspace._id, projectId: platformProject, userId: margaret, action: "DELIVERABLE_SUBMITTED", targetType: "deliverable", targetId: deliverable._id, metadata: { title: "Auth spec (v1)" } },
+  ]);
+
+  // ------------------------------------------------------------- CONVERSATIONS
+  const conversation = await Conversation.create({
+    name: "Platform — direct",
+    isGroup: false,
+    createdBy: alan,
+  });
+
+  await ConversationMember.insertMany([
+    { conversationId: conversation._id, userId: alan },
+    { conversationId: conversation._id, userId: linus },
+  ]);
+
+  // ----------------------------------------------------------------- MESSAGES
+  await Message.insertMany([
+    { workspaceId: workspace._id, channelId: "general", conversationId: null, userId: alan, content: "Welcome to the Acme workspace!" },
+    { workspaceId: workspace._id, channelId: "general", conversationId: null, userId: grace, content: "Thanks! Excited to get started." },
+    { workspaceId: workspace._id, channelId: null, conversationId: conversation._id, userId: alan, content: "Let's pair on the socket auth." },
+  ]);
+
+  // ------------------------------------------------------------------- VIEWS
+  await ProjectView.insertMany([
+    { viewerId: alan, projectId: platformProject, lastViewedAt: new Date("2026-03-01") },
+    { viewerId: alan, projectId: benchmarkProject, lastViewedAt: new Date("2026-03-02") },
+    { viewerId: margaret, projectId: platformProject, lastViewedAt: new Date("2026-03-03") },
+  ]);
+
+  await ProfileView.insertMany([
+    { viewerId: alan, viewedUserId: margaret, lastViewedAt: new Date("2026-03-04") },
+    { viewerId: grace, viewedUserId: ada, lastViewedAt: new Date("2026-03-05") },
+    { viewerId: linus, viewedUserId: alan, lastViewedAt: new Date("2026-03-06") },
+  ]);
+
+  const counts = {};
+  for (const model of MODELS) {
+    counts[model.collection.name] = await model.estimatedDocumentCount();
+  }
+
+  await mongoose.disconnect();
+  console.log("[seed] Done. Collections:", counts);
+  process.exit(0);
+}
+
+if (require.main === module) {
+  runSeed().catch((err) => {
+    console.error("[seed] Failed:", err);
+    process.exit(1);
+  });
+}
+
+module.exports = { runSeed, ensureIndexes, MODELS };

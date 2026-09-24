@@ -59,7 +59,7 @@ export default function LandingPage() {
           
 
             <Reveal delay={80}>
-              <h1 className="mt-7 text-4xl font-semibold tracking-tight text-zinc-50 sm:text-5xl lg:text-[3.4rem] lg:leading-[1.08]">
+              <h1 className="mt-7 text-7xl font-semibold tracking-tight text-zinc-50 sm:text-5xl lg:text-[3.4rem] lg:leading-[1.08]">
                 Everything your team needs,
                 <br />
                 <span className="text-primary">connected.</span>

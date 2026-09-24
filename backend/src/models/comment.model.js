@@ -3,10 +3,16 @@ const { applyTransforms } = require("../utils/serialize");
 
 const commentSchema = new mongoose.Schema(
   {
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Project",
+      default: null,
+      index: true,
+    },
     taskId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Task",
-      required: true,
+      default: null,
       index: true,
     },
     userId: {
@@ -25,6 +31,19 @@ const commentSchema = new mongoose.Schema(
 );
 
 commentSchema.index({ taskId: 1, createdAt: 1 });
+commentSchema.index({ projectId: 1, createdAt: 1 });
+commentSchema.index({ userId: 1 });
+
+commentSchema.pre("validate", function ensureParent(next) {
+  if (!this.projectId && !this.taskId) {
+    const error = new Error(
+      "A comment must belong to either a project or a task"
+    );
+    error.name = "ValidationError";
+    return next(error);
+  }
+  next();
+});
 
 applyTransforms(commentSchema);
 

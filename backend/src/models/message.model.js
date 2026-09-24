@@ -11,7 +11,13 @@ const messageSchema = new mongoose.Schema(
     },
     channelId: {
       type: String,
-      required: [true, "Channel is required"],
+      default: null,
+      index: true,
+    },
+    conversationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Conversation",
+      default: null,
       index: true,
     },
     userId: {
@@ -30,6 +36,7 @@ const messageSchema = new mongoose.Schema(
 );
 
 messageSchema.index({ workspaceId: 1, channelId: 1, createdAt: -1 });
+messageSchema.index({ conversationId: 1, createdAt: 1 });
 
 applyTransforms(messageSchema);
 

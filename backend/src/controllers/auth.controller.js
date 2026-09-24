@@ -7,7 +7,7 @@ const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
 function signToken(userId) {
   return jwt.sign({ userId }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || "7d",
+    expiresIn: process.env.JWT_EXPIRES_IN || "3d",
   });
 }
 
@@ -72,6 +72,7 @@ async function register(req, res, next) {
     return res.status(201).json({
       success: true,
       message: "Account created successfully",
+      token,
       user: user.toJSON(),
     });
   } catch (err) {
@@ -106,6 +107,7 @@ async function login(req, res, next) {
     return res.json({
       success: true,
       message: "Signed in successfully",
+      token,
       user: user.toJSON(),
     });
   } catch (err) {

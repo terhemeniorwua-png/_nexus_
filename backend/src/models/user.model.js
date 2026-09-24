@@ -1,6 +1,9 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
 
+const ROLES = ["OWNER", "ADMIN", "PROJECT_MANAGER", "MEMBER", "VIEWER", "COLLABORATOR"];
+const DEFAULT_ROLE = "MEMBER";
+
 const userSchema = new mongoose.Schema(
   {
     name: {
@@ -27,6 +30,11 @@ const userSchema = new mongoose.Schema(
       default: "",
       trim: true,
       maxlength: [500, "Avatar URL cannot exceed 500 characters"],
+    },
+    role: {
+      type: String,
+      enum: ROLES,
+      default: DEFAULT_ROLE,
     },
   },
   {
@@ -69,3 +77,5 @@ userSchema.set("toObject", {
 const User = mongoose.model("User", userSchema);
 
 module.exports = User;
+module.exports.ROLES = ROLES;
+module.exports.DEFAULT_ROLE = DEFAULT_ROLE;

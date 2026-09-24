@@ -6,7 +6,10 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "db:indexes": "node src/database/syncIndexes.js",
+    "db:seed": "node src/database/seed.js",
+    "db:reset": "node src/database/reset.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

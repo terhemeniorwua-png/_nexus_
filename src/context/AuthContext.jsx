@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { AUTH_ENDPOINTS, apiRequest } from "@/lib/api";
+import { disconnectSocket } from "@/lib/socket";
 
 const AuthContext = createContext(null);
 
@@ -47,6 +48,10 @@ export function AuthProvider({ children }) {
       body: { email, password },
     });
     setUser(data.user);
+    if (data.token) {
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("accessToken", data.token);
+    }
     return data.user;
   }, []);
 
@@ -56,6 +61,10 @@ export function AuthProvider({ children }) {
       body: payload,
     });
     setUser(data.user);
+    if (data.token) {
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("accessToken", data.token);
+    }
     return data.user;
   }, []);
 
@@ -63,6 +72,9 @@ export function AuthProvider({ children }) {
     try {
       await apiRequest(AUTH_ENDPOINTS.logout, { method: "POST" });
     } finally {
+      localStorage.removeItem("token");
+      localStorage.removeItem("accessToken");
+      disconnectSocket();
       setUser(null);
     }
   }, []);
