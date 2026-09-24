@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useResource } from "@/hooks/useResource";
 import { usePresence } from "@/hooks/usePresence";
 import Avatar from "./Avatar";
-import { GridIcon, BoardIcon, DocIcon, ChatIcon, SparkIcon } from "./icons";
+import { GridIcon, BoardIcon, DocIcon, ChatIcon, SparkIcon, TeamIcon, UsersIcon } from "./icons";
 
 function NavLink({ href, active, icon, label, badge }) {
   return (
@@ -61,6 +61,7 @@ export default function WorkspaceSidebar({ workspaceId, workspaceName, role }) {
         </Link>
 
         <NavLink href={`/workspaces/${workspaceId}`} active={isActive(`/workspaces/${workspaceId}`) && !isActive(`/workspaces/${workspaceId}/projects`)} icon={<GridIcon size={16} />} label="Overview" />
+        <NavLink href={`/workspaces/${workspaceId}/teams`} active={isActive(`/workspaces/${workspaceId}/teams`)} icon={<TeamIcon size={16} />} label="Teams" />
         <NavLink href={`/workspaces/${workspaceId}/documents`} active={isActive(`/workspaces/${workspaceId}/documents`)} icon={<DocIcon size={16} />} label="Documents" />
         <NavLink href={`/workspaces/${workspaceId}/messages`} active={isActive(`/workspaces/${workspaceId}/messages`)} icon={<ChatIcon size={16} />} label="Messages" />
 
@@ -86,6 +87,12 @@ export default function WorkspaceSidebar({ workspaceId, workspaceName, role }) {
         <p className="pt-4 pb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-zinc-600">
           Members
         </p>
+        <Link
+          href={`/workspaces/${workspaceId}/members`}
+          className={`mb-1 flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[12.5px] transition-colors ${isActive(`/workspaces/${workspaceId}/members`) ? "bg-white/8 text-white" : "text-zinc-400 hover:text-white"}`}
+        >
+          <UsersIcon size={14} /> View all members
+        </Link>
         <div className="space-y-1 px-1 py-1">
           {members.map((member) => (
             <div key={member.id} className="flex items-center gap-2.5 rounded-lg px-1.5 py-1.5">

@@ -120,9 +120,10 @@ async function runSeed() {
     { workspaceId: workspace._id, name: "Research", description: "Core research and data gathering" },
     { workspaceId: workspace._id, name: "Engineering", description: "Builds the platform" },
     { workspaceId: workspace._id, name: "Design", description: "Product and UX design" },
+    { workspaceId: workspace._id, name: "Product", description: "Product strategy and delivery" },
   ]);
 
-  const [researchTeam, engineeringTeam, designTeam] = teams.map((t) => t._id);
+  const [researchTeam, engineeringTeam, designTeam, productTeam] = teams.map((t) => t._id);
 
   await TeamMember.insertMany([
     { teamId: researchTeam, userId: ada, role: "TEAM_LEAD" },
@@ -132,6 +133,9 @@ async function runSeed() {
     { teamId: engineeringTeam, userId: margaret, role: "MEMBER" },
     { teamId: designTeam, userId: grace, role: "TEAM_LEAD" },
     { teamId: designTeam, userId: barbara, role: "MEMBER" },
+    { teamId: productTeam, userId: grace, role: "TEAM_LEAD" },
+    { teamId: productTeam, userId: katherine, role: "MEMBER" },
+    { teamId: productTeam, userId: linus, role: "MEMBER" },
   ]);
 
   // --------------------------------------------------------------- PROJECTS

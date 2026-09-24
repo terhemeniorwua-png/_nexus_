@@ -3,6 +3,7 @@ const cookieParser = require("cookie-parser");
 const cors = require("cors");
 const authRoutes = require("./routes/auth.route");
 const workspaceRoutes = require("./routes/workspace.route");
+const teamRoutes = require("./routes/team.route");
 const projectRoutes = require("./routes/project.route");
 const boardRoutes = require("./routes/board.route");
 const { authenticate } = require("./middleware/authenticate");
@@ -36,6 +37,7 @@ app.get("/api/health", (_req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/workspaces", workspaceRoutes);
+app.use("/api/teams", teamRoutes);
 app.use("/api/workspaces/:workspaceId/projects", projectRoutes);
 app.use("/api/workspaces/:workspaceId/projects/:projectId", boardRoutes);
 app.use("/api/workspaces/:workspaceId/projects/:projectId/members", projectMemberRoutes);

@@ -142,6 +142,18 @@ export function UsersIcon(props) {
   );
 }
 
+export function TeamIcon(props) {
+  return (
+    <Svg {...props}>
+      <circle cx="8" cy="7" r="3" {...stroke} />
+      <circle cx="16" cy="9" r="2.5" {...stroke} />
+      <path d="M2.5 18.5a5.5 5.5 0 0 1 11 0" {...stroke} />
+      <path d="M14 14.5a4.5 4.5 0 0 1 6 3" {...stroke} />
+      <circle cx="8" cy="14" r="2" {...stroke} />
+    </Svg>
+  );
+}
+
 export function CheckIcon(props) {
   return (
     <Svg {...props}>

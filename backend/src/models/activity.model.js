@@ -42,11 +42,16 @@ const activitySchema = new mongoose.Schema(
         "MEMBERSHIP_UPDATED",
         "COMMENT_ADDED",
         "CHANNEL_JOINED",
+        "TEAM_CREATED",
+        "TEAM_UPDATED",
+        "TEAM_DELETED",
+        "TEAM_MEMBER_ADDED",
+        "TEAM_MEMBER_REMOVED",
       ],
     },
     targetType: {
       type: String,
-      enum: ["task", "project", "document", "member", "channel", "workspace", "comment", "subtask", "deliverable", "review", "resource"],
+      enum: ["task", "project", "document", "member", "channel", "workspace", "comment", "subtask", "deliverable", "review", "resource", "team"],
       default: "task",
     },
     targetId: {

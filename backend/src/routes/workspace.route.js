@@ -15,6 +15,7 @@ const {
   listChannels,
   createChannel,
 } = require("../controllers/workspace.controller");
+const { listWorkspaceTeams } = require("../controllers/team.controller");
 
 const router = express.Router();
 
@@ -73,6 +74,14 @@ router.post(
   memberOf,
   requirePermission("manage_channels"),
   createChannel
+);
+
+router.get(
+  "/:workspaceId/teams",
+  authenticate,
+  memberOf,
+  requirePermission("view_teams"),
+  listWorkspaceTeams
 );
 
 module.exports = router;

@@ -37,6 +37,104 @@ function requirePermission(permission) {
 }
 
 /**
+ * Attach the workspace authorization context for an arbitrary workspace
+ * object onto `req` (workspace, memberRole, workspaceMember, isOwner,
+ * workspaceRole). Rejects with 403 when the user is neither an owner nor a
+ * workspace member.
+ */
+async function attachWorkspaceContext(req, workspace) {
+  const isOwner = String(workspace.ownerId) === String(req.user._id);
+
+  const member = await WorkspaceMember.findOne({
+    workspaceId: workspace._id,
+    userId: req.user._id,
+  });
+
+  if (!member && !isOwner) {
+    throw new ApiError(403, "You do not have access to this workspace");
+  }
+
+  req.workspace = workspace;
+  req.memberRole = member ? member.role : "Admin";
+  req.workspaceMember = member || null;
+  req.isOwner = isOwner;
+  req.workspaceRole = workspaceRoleOf(req.memberRole, isOwner);
+}
+
+/**
+ * Workspace-context resolver for team creation, where the workspace id comes
+ * from the request body (`workspaceId`) instead of the route params.
+ *
+ * Must run AFTER `authenticate`. Rejects invalid/missing workspaces with 404
+ * and non-members with 403.
+ */
+async function workspaceFromBody(req, _res, next) {
+  try {
+    const { workspaceId } = req.body;
+
+    if (!workspaceId || !mongoose.isValidObjectId(workspaceId)) {
+      return next(new ApiError(404, "Workspace not found"));
+    }
+
+    const workspace = await Workspace.findById(workspaceId);
+    if (!workspace) return next(new ApiError(404, "Workspace not found"));
+
+    await attachWorkspaceContext(req, workspace);
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Team-context gate. Must run AFTER `authenticate`. Loads the team referenced
+ * by :teamId, attaches the team's workspace context, and flags whether the
+ * requesting user is a TEAM_LEAD of the team:
+ *   req.team, req.workspace, req.memberRole, req.isOwner, req.workspaceRole,
+ *   req.isTeamLead
+ */
+async function teamAccess(req, _res, next) {
+  try {
+    const { teamId } = req.params;
+
+    if (!teamId || !mongoose.isValidObjectId(teamId)) {
+      return next(new ApiError(404, "Team not found"));
+    }
+
+    const team = await Team.findById(teamId);
+    if (!team) return next(new ApiError(404, "Team not found"));
+
+    const workspace = await Workspace.findById(team.workspaceId);
+    if (!workspace) return next(new ApiError(404, "Workspace not found"));
+
+    await attachWorkspaceContext(req, workspace);
+
+    const teamMember = await TeamMember.findOne({
+      teamId: team._id,
+      userId: req.user._id,
+    });
+
+    req.team = team;
+    req.isTeamLead = Boolean(teamMember && teamMember.role === "TEAM_LEAD");
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Team-member management gate. Must run AFTER `teamAccess`. Allows either a
+ * workspace owner/admin (manage_team_members) or the TEAM_LEAD of that team.
+ */
+function requireTeamMemberManagement(req, _res, next) {
+  const role = req.workspaceRole || workspaceRoleOf(req.memberRole, req.isOwner);
+  if (req.isTeamLead || hasWorkspacePermission(role, "manage_team_members")) {
+    return next();
+  }
+  return next(new ApiError(403, "You do not have permission to perform this action."));
+}
+
+/**
  * Project-context gate.
  *
  * Must run AFTER `authenticate` and `memberOf`. Loads the project referenced
@@ -193,6 +291,9 @@ function documentAccess(permission) {
 
 module.exports = {
   requirePermission,
+  workspaceFromBody,
+  teamAccess,
+  requireTeamMemberManagement,
   projectAccess,
   requireProjectPermission,
   taskOwnership,
