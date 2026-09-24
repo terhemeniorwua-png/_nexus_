@@ -258,7 +258,7 @@ Indexes: `(taskId, createdAt)`, `(projectId, createdAt)`, `userId`.
 | `body`       | String   | Default `""`, ≤2000                 |
 | `link`       | String   | Default `""`                        |
 | `read`       | Boolean  | Default `false`, indexed            |
-| `entityType` | String   | Enum `project/task/subtask/deliverable/review/comment/member/channel/workspace`, nullable |
+| `entityType` | String   | Enum `project/task/subtask/deliverable/review/comment/member/channel/workspace/team`, nullable |
 | `entityId`   | ObjectId | Related entity, nullable, indexed   |
 
 ### activities
@@ -269,7 +269,7 @@ Indexes: `(taskId, createdAt)`, `(projectId, createdAt)`, `userId`.
 | `projectId`   | ObjectId | FK → projects, nullable, indexed         |
 | `userId`      | ObjectId | FK → users, required                     |
 | `action`      | String   | Enum — see [Activity actions](#activity-actions) |
-| `targetType`  | String   | Enum `task/project/document/member/channel/workspace/comment/subtask/deliverable/review/resource` |
+| `targetType`  | String   | Enum `task/project/document/member/channel/workspace/comment/subtask/deliverable/review/resource/team` |
 | `targetId`    | ObjectId | Related entity                          |
 | `metadata`    | Mixed    | JSONB-equivalent free-form context (e.g. `{ taskTitle, previousStatus, newStatus }`) |
 
@@ -369,7 +369,7 @@ Both casings accepted for compatibility with the existing board (`Low`, `Medium`
 
 ### Activity actions
 
-`TASK_CREATED`, `TASK_STARTED`, `TASK_MOVED`, `TASK_UPDATED`, `TASK_COMPLETED`, `TASK_DELETED`, `SUBTASK_COMPLETED`, `DELIVERABLE_SUBMITTED`, `DELIVERABLE_APPROVED`, `PROJECT_CREATED`, `PROJECT_UPDATED`, `MEMBER_INVITED`, `DOCUMENT_CREATED`, `DOCUMENT_UPDATED`, `RESOURCE_ADDED`, `MEMBERSHIP_UPDATED`, `COMMENT_ADDED`, `CHANNEL_JOINED`
+`TASK_CREATED`, `TASK_STARTED`, `TASK_MOVED`, `TASK_UPDATED`, `TASK_COMPLETED`, `TASK_DELETED`, `SUBTASK_COMPLETED`, `DELIVERABLE_SUBMITTED`, `DELIVERABLE_APPROVED`, `PROJECT_CREATED`, `PROJECT_UPDATED`, `MEMBER_INVITED`, `DOCUMENT_CREATED`, `DOCUMENT_UPDATED`, `RESOURCE_ADDED`, `MEMBERSHIP_UPDATED`, `COMMENT_ADDED`, `CHANNEL_JOINED`, `TEAM_CREATED`, `TEAM_UPDATED`, `TEAM_DELETED`, `TEAM_MEMBER_ADDED`, `TEAM_MEMBER_REMOVED`
 
 Activity tracking covers meaningful in-app actions only — **never** keyboard/mouse/screen/browser activity.
 
@@ -392,6 +392,7 @@ MongoDB has no `ON DELETE` triggers. Deletion behavior is handled in the applica
 | Entity deleted            | Related data                            |
 |---------------------------|------------------------------------------|
 | Workspace                 | Memberships, projects, tasks, activities deleted (existing controller behavior) |
+| Team                      | Its `teammembers` rows removed; `projects.teamId` set to `null` (**projects are preserved** and remain the team's orphaned projects) |
 | Project                   | Its tasks, subtasks, deliverables, reviews, resources removed |
 | User                      | **Activity logs and messages are preserved** (historical records), memberships removed |
 
@@ -422,7 +423,7 @@ npm run db:seed
 `src/database/seed.js` drops the Nexus collections, rebuilds indexes, and inserts:
 
 - 1 workspace, 7 users (bcrypt-hashed `Password123!`), 7 workspace memberships
-- 3 teams, 7 team memberships
+- 4 teams, 10 team memberships
 - 3 projects, 7 project memberships
 - 5 project resources, 12 board columns, 4 tasks (with weighted subtasks)
 - 1 deliverable, 1 review, 3 comments

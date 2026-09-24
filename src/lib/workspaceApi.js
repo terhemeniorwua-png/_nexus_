@@ -13,6 +13,21 @@ export const PRIORITY_COLORS = {
   Urgent: "#ef4444",
 };
 
+export const PROJECT_PRIORITY_META = {
+  LOW: { label: "Low", color: "#22c55e" },
+  MEDIUM: { label: "Medium", color: "#eab308" },
+  HIGH: { label: "High", color: "#f97316" },
+  URGENT: { label: "Urgent", color: "#ef4444" },
+};
+
+export const PROJECT_STATUS_META = {
+  PLANNING: { label: "Planning", color: "#8b8b91" },
+  ACTIVE: { label: "Active", color: "#3b82f6" },
+  ON_HOLD: { label: "On hold", color: "#eab308" },
+  COMPLETED: { label: "Completed", color: "#22c55e" },
+  ARCHIVED: { label: "Archived", color: "#a855f7" },
+};
+
 export const STATUS_COLORS = {
   "TO DO": "#8b8b91",
   "IN PROGRESS": "#3b82f6",

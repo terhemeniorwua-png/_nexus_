@@ -5,6 +5,7 @@ const authRoutes = require("./routes/auth.route");
 const workspaceRoutes = require("./routes/workspace.route");
 const teamRoutes = require("./routes/team.route");
 const projectRoutes = require("./routes/project.route");
+const projectGlobalRoutes = require("./routes/projectGlobal.route");
 const boardRoutes = require("./routes/board.route");
 const { authenticate } = require("./middleware/authenticate");
 const { reorderTask } = require("./controllers/board.controller");
@@ -38,6 +39,7 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/workspaces", workspaceRoutes);
 app.use("/api/teams", teamRoutes);
+app.use("/api/projects", projectGlobalRoutes);
 app.use("/api/workspaces/:workspaceId/projects", projectRoutes);
 app.use("/api/workspaces/:workspaceId/projects/:projectId", boardRoutes);
 app.use("/api/workspaces/:workspaceId/projects/:projectId/members", projectMemberRoutes);

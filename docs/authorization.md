@@ -59,6 +59,7 @@ The single source of truth lives in `permissions/permissions.js`. Controllers an
 | `view_channels` | ✅ | ✅ | ✅ | ✅ |
 | `view_workspace_activity` | ✅ | ✅ | ✅ | ✅ |
 | `view_document` | ✅ | ✅ | ✅ | ✅ |
+| `view_teams` | ✅ | ✅ | ✅ | ✅ |
 | `send_message` | ✅ | ✅ | ✅ | – |
 | `create_project` | ✅ | ✅ | ✅ | – |
 | `create_document` / `update_document` | ✅ | ✅ | ✅ | – |
@@ -66,6 +67,7 @@ The single source of truth lives in `permissions/permissions.js`. Controllers an
 | `manage_workspace_members` | ✅ | ✅ | – | – |
 | `manage_channels` | ✅ | ✅ | – | – |
 | `manage_teams` | ✅ | ✅ | – | – |
+| `manage_team_members` | ✅ | ✅ | – | – |
 | `delete_document` | ✅ | ✅ | – | – |
 
 ### 2.2 Project actions
@@ -118,8 +120,12 @@ Only workspace owners and admins may assign the `PROJECT_MANAGER` role (`canGran
 | `requireProjectPermission(action)` | project routes | Requires `hasProjectPermission(req.projectRole, action)`. |
 | `taskOwnership` | board task routes | Enforces the ownership rule; attaches `req.task`. |
 | `documentAccess(action)` | document routes | For project-scoped documents, resolves the **project** role; for workspace documents, uses the workspace role. |
+| `attachWorkspaceContext` | team routes | Resolves a workspace from `req.body.workspaceId` (or a team's `workspaceId` when the body omits it); sets `req.workspace` / `req.workspaceRole`. **404** invalid, **403** non-member. |
+| `teamAccess` | team routes | Loads the team by `:teamId`, verifies it belongs to the workspace, attaches `req.team`, `req.teamMember`, `req.isTeamLead`. |
+| `requireTeamMemberManagement` | team member routes | Allows a workspace role holding `manage_team_members` **or** the requester being the **team lead** (`req.isTeamLead`) of that team. The team-lead path is membership-based and bypasses the role matrix. |
 
 Run order on project-scoped routes: `authenticate → memberOf → (projectAccess) → requireProjectPermission → taskOwnership`.
+Team routes run `authenticate → attachWorkspaceContext/teamAccess → requirePermission/requireTeamMemberManagement`.
 
 ---
 
@@ -153,6 +159,13 @@ Mounts are in `app.js`; each route file declares its own permission gate.
 | `GET/PATCH/DELETE /.../documents/:docId` | `documentAccess(view|update|delete)` |
 | `GET/POST /api/workspaces/:id/messages` | `view_channels` / `send_message` |
 | `GET /api/workspaces/:id/activity` | `view_workspace_activity` (filtered to accessible projects) |
+| `GET /api/workspaces/:id/teams` | `view_teams` |
+| `POST /api/teams` | `manage_teams` (workspace resolved from `workspaceId` in the body) |
+| `GET /api/teams/:teamId` | `teamAccess` + `view_teams` |
+| `PATCH/DELETE /api/teams/:teamId` | `teamAccess` + `manage_teams` |
+| `GET /api/teams/:teamId/members` | `teamAccess` + `view_teams` |
+| `POST /api/teams/:teamId/members` | `teamAccess` + `requireTeamMemberManagement` |
+| `PATCH/DELETE /api/teams/:teamId/members/:userId` | `teamAccess` + `requireTeamMemberManagement` |
 | `GET /api/me/overview`, `GET /api/me/tasks` | authenticated (filtered to accessible projects) |
 
 **Cross-team collaborators**: a user added to a project as `COLLABORATOR` can view that project and update only their own assigned tasks, but **cannot comment**. They have no access to other projects they are not a member of.
@@ -175,12 +188,12 @@ The board UI derives its state from the project role returned on each project (`
 
 ## 6. Tests
 
-`backend/test/authz.test.js` uses Node's built-in test runner (`node --test`) against a dedicated database (`nexus_authz_test`, overridable via `MONGO_URI`). No new dependencies.
+`backend/test/authz.test.js` + `backend/test/teams.test.js` use Node's built-in test runner (`node --test`) against dedicated databases (`nexus_authz_test` / `nexus_teams_test`, overridable via `MONGO_URI`). No new dependencies.
 
 ```bash
 cd backend && npm test
 ```
 
-It covers: 401 (missing/invalid token), 403 for non-members, workspace vs project roles, owner/admin derivation, cross-team collaborator access, project-listing filtering, task ownership, assignment gating, deliverable submit/review rules, project-member management, self-promotion denial, task reordering, document scoping, and activity filtering.
+The workspace+authz suite covers: 401 (missing/invalid token), 403 for non-members, workspace vs project roles, owner/admin derivation, cross-team collaborator access, project-listing filtering, task ownership, assignment gating, deliverable submit/review rules, project-member management, self-promotion denial, task reordering, document scoping, and activity filtering. The team suite covers team CRUD, the workspace teams list, member add/remove/role changes, the team-lead management bypass, cross-workspace member rejection, duplicate name/membership conflicts, the `getTeam` layered detail payload (team + workspace + role + isTeamLead + projects), and the safe-delete rule (projects preserved, `teamId` nulled). Running the full suite: 49 tests.
 
 Seeded dev users (`npm run db:seed`) match the personas used in the tests: `ada` (owner, collaborator on platform), `alan` (admin + platform PM), `linus`/`margaret` (platform members; margaret also `COLLABORATOR` on the design system), `katherine` (benchmark PM), `grace` (design PM), `barbara` (design viewer). All use the password `Password123!`.

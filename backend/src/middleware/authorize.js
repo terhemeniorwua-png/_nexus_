@@ -135,6 +135,80 @@ function requireTeamMemberManagement(req, _res, next) {
 }
 
 /**
+ * Team-context resolver for the global project-creation endpoint, where the
+ * workspace is derived from the team referenced by `teamId` (never trusted
+ * from the client). Must run AFTER `authenticate`. Sets req.team and the
+ * workspace context (req.workspace, req.workspaceRole, ...). Rejects missing
+ * teams with 400, unknown teams with 404, and non-members with 403.
+ */
+async function projectTeamContext(req, _res, next) {
+  try {
+    const { teamId } = req.body;
+
+    if (!teamId || !mongoose.isValidObjectId(teamId)) {
+      return next(new ApiError(400, "A team is required"));
+    }
+
+    const team = await Team.findById(teamId);
+    if (!team) return next(new ApiError(404, "Team not found"));
+
+    const workspace = await Workspace.findById(team.workspaceId);
+    if (!workspace) return next(new ApiError(404, "Workspace not found"));
+
+    await attachWorkspaceContext(req, workspace);
+    req.team = team;
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Global project-context gate (Phase 8). Same contract as `projectAccess`
+ * but the workspace is resolved from the project itself instead of a
+ * `:workspaceId` route param, enabling /api/projects/:projectId routes.
+ *
+ * Must run AFTER `authenticate`. Attaches:
+ *   req.project, req.projectMember, req.projectRole
+ *   plus the project's workspace context (req.workspace, req.workspaceRole)
+ */
+async function globalProjectAccess(req, _res, next) {
+  try {
+    const { projectId } = req.params;
+
+    if (!projectId || !mongoose.isValidObjectId(projectId)) {
+      return next(new ApiError(404, "Project not found"));
+    }
+
+    const project = await Project.findById(projectId);
+    if (!project) return next(new ApiError(404, "Project not found"));
+
+    const workspace = await Workspace.findById(project.workspaceId);
+    if (!workspace) return next(new ApiError(404, "Workspace not found"));
+
+    await attachWorkspaceContext(req, workspace);
+
+    const resolved = await resolveProjectRole({
+      user: req.user,
+      project,
+      isOwner: Boolean(req.isOwner),
+      workspaceMemberRole: req.memberRole,
+    });
+
+    if (!resolved) {
+      return next(new ApiError(403, "You do not have permission to view this project"));
+    }
+
+    req.project = project;
+    req.projectMember = resolved.member;
+    req.projectRole = resolved.role;
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Project-context gate.
  *
  * Must run AFTER `authenticate` and `memberOf`. Loads the project referenced
@@ -294,7 +368,9 @@ module.exports = {
   workspaceFromBody,
   teamAccess,
   requireTeamMemberManagement,
+  projectTeamContext,
   projectAccess,
+  globalProjectAccess,
   requireProjectPermission,
   taskOwnership,
   documentAccess,

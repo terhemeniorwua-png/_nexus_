@@ -1,7 +1,11 @@
 "use strict";
 
+const mongoose = require("mongoose");
+const Workspace = require("../models/workspace.model");
+const WorkspaceMember = require("../models/workspaceMember.model");
 const Project = require("../models/project.model");
 const ProjectMember = require("../models/projectMember.model");
+const { ApiError } = require("../middleware/errorHandler");
 
 /**
  * Resolve the project-context role for a user against a specific project.
@@ -86,4 +90,105 @@ async function attachRolesToProjects(projects, { userId, isOwner = false, worksp
   return projects;
 }
 
-module.exports = { resolveProjectRole, getAccessibleProjectIds, attachRolesToProjects };
+/**
+ * Global, cross-workspace accessible-project resolution (Phase 8).
+ *
+ * Returns every project the user may access across all workspaces they
+ * belong to (workspace owner or member), each with an attached `role`.
+ * Projects are filtered server-side — never by the client. Optional filters
+ * (`status`, `priority`, `teamId`) are applied on top of the accessible set,
+ * so an unauthorized team's projects are never exposed.
+ */
+async function getAccessibleProjectsGlobal({ userId, filters = {} }) {
+  const [memberships, owned] = await Promise.all([
+    WorkspaceMember.find({ userId }).select("workspaceId role"),
+    Workspace.find({ ownerId: userId }).select("_id"),
+  ]);
+
+  const ownedIds = new Set(owned.map((w) => String(w._id)));
+  const wsRoleById = new Map(memberships.map((m) => [String(m.workspaceId), m.role]));
+
+  const wsContext = new Map();
+  for (const wsId of new Set([...wsRoleById.keys(), ...ownedIds])) {
+    const isOwner = ownedIds.has(wsId);
+    const memberRole = wsRoleById.get(wsId) || (isOwner ? "Admin" : null);
+    if (!isOwner && !memberRole) continue;
+    wsContext.set(wsId, { isOwner, memberRole });
+  }
+
+  const ids = new Set();
+  for (const [wsId, ctx] of wsContext) {
+    const accessible = await getAccessibleProjectIds({
+      userId,
+      workspaceId: wsId,
+      isOwner: ctx.isOwner,
+      workspaceMemberRole: ctx.memberRole,
+    });
+    accessible.forEach((id) => ids.add(id));
+  }
+
+  const query = { _id: { $in: [...ids] } };
+
+  if (filters.status !== undefined) {
+    if (!Project.STATUSES.includes(filters.status)) {
+      throw new ApiError(400, "Status must be PLANNING, ACTIVE, ON_HOLD, COMPLETED, or ARCHIVED");
+    }
+    query.status = filters.status;
+  }
+
+  if (filters.priority !== undefined) {
+    if (!Project.PRIORITIES.includes(filters.priority)) {
+      throw new ApiError(400, "Priority must be LOW, MEDIUM, HIGH, or URGENT");
+    }
+    query.priority = filters.priority;
+  }
+
+  if (filters.teamId !== undefined && filters.teamId !== "") {
+    if (!mongoose.isValidObjectId(filters.teamId)) {
+      throw new ApiError(400, "Invalid team");
+    }
+    query.teamId = filters.teamId;
+  }
+
+  const projects = await Project.find(query).sort({ createdAt: -1 });
+
+  await attachRolesGlobal(projects, { userId, wsContext });
+  return projects;
+}
+
+/**
+ * Attach a project-context `role` to each project using per-workspace
+ * owner/admin context, in addition to the existing attachRolesToProjects
+ * membership + management checks. Mutates and returns the projects.
+ */
+async function attachRolesGlobal(projects, { userId, wsContext }) {
+  const ids = projects.map((p) => p._id);
+  const memberships = await ProjectMember.find({ projectId: { $in: ids }, userId });
+  const roleByProject = memberships.reduce((acc, m) => {
+    acc[String(m.projectId)] = m.role;
+    return acc;
+  }, {});
+
+  projects.forEach((project) => {
+    let role = roleByProject[String(project._id)] || null;
+    if (!role && project.managerId && String(project.managerId) === String(userId)) {
+      role = "PROJECT_MANAGER";
+    }
+    if (!role) {
+      const ctx = wsContext.get(String(project.workspaceId));
+      if (ctx && ctx.isOwner) role = "WORKSPACE_OWNER";
+      else if (ctx && ctx.memberRole === "Admin") role = "ADMIN";
+    }
+    project.role = role;
+  });
+
+  return projects;
+}
+
+module.exports = {
+  resolveProjectRole,
+  getAccessibleProjectIds,
+  attachRolesToProjects,
+  getAccessibleProjectsGlobal,
+  attachRolesGlobal,
+};

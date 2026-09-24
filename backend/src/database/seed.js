@@ -176,9 +176,59 @@ async function runSeed() {
       dueDate: new Date("2026-06-30"),
       createdBy: ada,
     },
+    {
+      workspaceId: workspace._id,
+      teamId: researchTeam,
+      name: "Nexus Research Platform",
+      description: "Open-science portal for sharing team research and datasets",
+      status: "ACTIVE",
+      priority: "HIGH",
+      managerId: katherine,
+      startDate: new Date("2026-09-01"),
+      dueDate: new Date("2026-12-20"),
+      createdBy: ada,
+    },
+    {
+      workspaceId: workspace._id,
+      teamId: engineeringTeam,
+      name: "Mobile Banking API",
+      description: "Public API for the partner mobile banking product",
+      status: "COMPLETED",
+      priority: "URGENT",
+      managerId: linus,
+      startDate: new Date("2026-01-15"),
+      dueDate: new Date("2026-06-30"),
+      createdBy: ada,
+    },
+    {
+      workspaceId: workspace._id,
+      teamId: engineeringTeam,
+      name: "Healthcare Management System",
+      description: "Patient record management rollout for the health division",
+      status: "ACTIVE",
+      priority: "URGENT",
+      managerId: alan,
+      startDate: new Date("2026-04-01"),
+      dueDate: new Date("2026-11-30"),
+      createdBy: ada,
+    },
+    {
+      workspaceId: workspace._id,
+      teamId: productTeam,
+      name: "Developer Learning Platform",
+      description: "Guided onboarding courses for the Nexus developer API",
+      status: "PLANNING",
+      priority: "MEDIUM",
+      managerId: grace,
+      startDate: new Date("2026-10-01"),
+      dueDate: new Date("2027-03-31"),
+      createdBy: ada,
+    },
   ]);
 
-  const [platformProject, benchmarkProject, designSystemProject] = projects.map((p) => p._id);
+  const [platformProject, benchmarkProject, designSystemProject, researchProject, bankingProject, healthProject, learningProject] = projects.map(
+    (p) => p._id,
+  );
 
   // -------------------------------------------------------- PROJECT MEMBERS
   // Project membership is the source of truth for project access.
@@ -202,6 +252,10 @@ async function runSeed() {
     { projectId: designSystemProject, userId: grace, role: "PROJECT_MANAGER" },
     { projectId: designSystemProject, userId: margaret, role: "COLLABORATOR" },
     { projectId: designSystemProject, userId: barbara, role: "VIEWER" },
+    { projectId: researchProject, userId: katherine, role: "PROJECT_MANAGER" },
+    { projectId: bankingProject, userId: linus, role: "PROJECT_MANAGER" },
+    { projectId: healthProject, userId: alan, role: "PROJECT_MANAGER" },
+    { projectId: learningProject, userId: grace, role: "PROJECT_MANAGER" },
   ]);
 
   // ------------------------------------------------------- PROJECT RESOURCES

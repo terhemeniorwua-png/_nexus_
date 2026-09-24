@@ -29,6 +29,10 @@ function errorHandler(err, req, res, _next) {
     return res.status(409).json({ success: false, message: label });
   }
 
+  if (err.name === "ValidationError") {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+
   if (err.name === "CastError") {
     return res.status(400).json({ success: false, message: "Invalid identifier" });
   }
