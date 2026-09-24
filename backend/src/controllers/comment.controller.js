@@ -1,6 +1,7 @@
 const Task = require("../models/task.model");
 const Comment = require("../models/comment.model");
 const { ApiError } = require("../middleware/errorHandler");
+const { hasProjectPermission } = require("../permissions/permissions");
 const { recordActivity } = require("../services/activity.service");
 const { createNotification } = require("../services/notification.service");
 const { getIO } = require("../sockets/store");
@@ -56,6 +57,7 @@ async function addComment(req, res, next) {
 
     await recordActivity({
       workspaceId: req.workspace._id,
+      projectId: req.project._id,
       userId: req.user._id,
       action: "COMMENT_ADDED",
       targetType: "comment",
@@ -96,7 +98,7 @@ async function deleteComment(req, res, next) {
     if (!comment) return next(new ApiError(404, "Comment not found"));
 
     const isAuthor = String(comment.userId) === String(req.user._id);
-    const isModerator = req.memberRole === "Admin";
+    const isModerator = hasProjectPermission(req.projectRole, "update_project");
     if (!isAuthor && !isModerator) {
       return next(new ApiError(403, "You can only delete your own comments"));
     }

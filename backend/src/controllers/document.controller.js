@@ -1,10 +1,23 @@
 const Document = require("../models/document.model");
+const Project = require("../models/project.model");
 const { ApiError } = require("../middleware/errorHandler");
 const { recordActivity } = require("../services/activity.service");
+const { getAccessibleProjectIds } = require("../services/access.service");
+const { hasProjectPermission } = require("../permissions/permissions");
 
 async function listDocuments(req, res, next) {
   try {
-    const documents = await Document.find({ workspaceId: req.workspace._id })
+    const accessibleIds = await getAccessibleProjectIds({
+      userId: req.user._id,
+      workspaceId: req.workspace._id,
+      isOwner: Boolean(req.isOwner),
+      workspaceMemberRole: req.memberRole,
+    });
+
+    const documents = await Document.find({
+      workspaceId: req.workspace._id,
+      $or: [{ projectId: null }, { projectId: { $in: accessibleIds } }],
+    })
       .select("-content")
       .populate("projectId", "name")
       .populate("createdBy", "name email avatar")
@@ -20,9 +33,31 @@ async function createDocument(req, res, next) {
   try {
     const { title, content, projectId } = req.body;
 
+    const targetProjectId = projectId || null;
+
+    // Project-scoped documents require project access + the project-context
+    // create_document permission.
+    if (targetProjectId) {
+      const project = await Project.findById(targetProjectId);
+      if (!project || String(project.workspaceId) !== String(req.workspace._id)) {
+        return next(new ApiError(403, "Project does not belong to this workspace"));
+      }
+
+      const { resolveProjectRole } = require("../services/access.service");
+      const resolved = await resolveProjectRole({
+        user: req.user,
+        project,
+        isOwner: Boolean(req.isOwner),
+        workspaceMemberRole: req.memberRole,
+      });
+      if (!resolved || !hasProjectPermission(resolved.role, "create_document")) {
+        return next(new ApiError(403, "You do not have permission to perform this action."));
+      }
+    }
+
     const document = await Document.create({
       workspaceId: req.workspace._id,
-      projectId: projectId || null,
+      projectId: targetProjectId,
       title: String(title || "Untitled").trim() || "Untitled",
       content: String(content || ""),
       createdBy: req.user._id,
@@ -45,14 +80,9 @@ async function createDocument(req, res, next) {
 
 async function getDocument(req, res, next) {
   try {
-    const document = await Document.findOne({
-      _id: req.params.docId,
-      workspaceId: req.workspace._id,
-    })
+    const document = await Document.findById(req.document._id)
       .populate("projectId", "name")
       .populate("createdBy", "name email avatar");
-
-    if (!document) return next(new ApiError(404, "Document not found"));
 
     res.json({ success: true, document });
   } catch (error) {
@@ -62,12 +92,7 @@ async function getDocument(req, res, next) {
 
 async function updateDocument(req, res, next) {
   try {
-    const document = await Document.findOne({
-      _id: req.params.docId,
-      workspaceId: req.workspace._id,
-    });
-
-    if (!document) return next(new ApiError(404, "Document not found"));
+    const document = req.document;
 
     const { title, content, projectId } = req.body;
     if (title !== undefined) document.title = String(title).trim() || "Untitled";
@@ -93,12 +118,7 @@ async function updateDocument(req, res, next) {
 
 async function deleteDocument(req, res, next) {
   try {
-    const document = await Document.findOne({
-      _id: req.params.docId,
-      workspaceId: req.workspace._id,
-    });
-
-    if (!document) return next(new ApiError(404, "Document not found"));
+    const document = req.document;
 
     await Document.deleteOne({ _id: document._id });
 

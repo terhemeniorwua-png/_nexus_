@@ -1,6 +1,7 @@
 const express = require("express");
 const { authenticate } = require("../middleware/authenticate");
-const { memberOf, requireRole } = require("../middleware/roleMiddleware");
+const { memberOf } = require("../middleware/roleMiddleware");
+const { requirePermission } = require("../middleware/authorize");
 const {
   listWorkspaces,
   createWorkspace,
@@ -20,39 +21,57 @@ const router = express.Router();
 router.get("/", authenticate, listWorkspaces);
 router.post("/", authenticate, createWorkspace);
 
-router.get("/:workspaceId", authenticate, memberOf, getWorkspace);
-router.patch("/:workspaceId", authenticate, memberOf, requireRole("Admin"), updateWorkspace);
-router.delete("/:workspaceId", authenticate, memberOf, requireRole("Admin"), deleteWorkspace);
+router.get("/:workspaceId", authenticate, memberOf, requirePermission("view_workspace"), getWorkspace);
+router.patch(
+  "/:workspaceId",
+  authenticate,
+  memberOf,
+  requirePermission("manage_workspace"),
+  updateWorkspace
+);
+router.delete(
+  "/:workspaceId",
+  authenticate,
+  memberOf,
+  requirePermission("manage_workspace"),
+  deleteWorkspace
+);
 
 router.get(
   "/:workspaceId/members",
   authenticate,
   memberOf,
-  requireRole("Admin", "Member", "Viewer"),
+  requirePermission("view_workspace_members"),
   listMembers
 );
-router.post("/:workspaceId/members", authenticate, memberOf, requireRole("Admin", "Member"), addMember);
+router.post(
+  "/:workspaceId/members",
+  authenticate,
+  memberOf,
+  requirePermission("manage_workspace_members"),
+  addMember
+);
 router.patch(
   "/:workspaceId/members/:userId",
   authenticate,
   memberOf,
-  requireRole("Admin"),
+  requirePermission("manage_workspace_members"),
   updateMemberRole
 );
 router.delete(
   "/:workspaceId/members/:userId",
   authenticate,
   memberOf,
-  requireRole("Admin"),
+  requirePermission("manage_workspace_members"),
   removeMember
 );
 
-router.get("/:workspaceId/channels", authenticate, memberOf, listChannels);
+router.get("/:workspaceId/channels", authenticate, memberOf, requirePermission("view_channels"), listChannels);
 router.post(
   "/:workspaceId/channels",
   authenticate,
   memberOf,
-  requireRole("Admin", "Member"),
+  requirePermission("manage_channels"),
   createChannel
 );
 

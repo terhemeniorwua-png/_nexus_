@@ -1,6 +1,11 @@
 const express = require("express");
 const { authenticate } = require("../middleware/authenticate");
-const { memberOf, requireRole } = require("../middleware/roleMiddleware");
+const { memberOf } = require("../middleware/roleMiddleware");
+const {
+  projectAccess,
+  requireProjectPermission,
+  requirePermission,
+} = require("../middleware/authorize");
 const {
   listProjects,
   createProject,
@@ -13,19 +18,13 @@ const router = express.Router({ mergeParams: true });
 
 router.use(authenticate, memberOf);
 
-router.get(
-  "/",
-  requireRole("Admin", "Member", "Viewer"),
-  listProjects
-);
-router.post("/", requireRole("Admin", "Member"), createProject);
+router.get("/", requirePermission("view_workspace"), listProjects);
+router.post("/", requirePermission("create_project"), createProject);
 
-router.get(
-  "/:projectId",
-  requireRole("Admin", "Member", "Viewer"),
-  getProject
-);
-router.patch("/:projectId", requireRole("Admin", "Member"), updateProject);
-router.delete("/:projectId", requireRole("Admin"), deleteProject);
+router.use("/:projectId", projectAccess);
+
+router.get("/:projectId", requireProjectPermission("view_project"), getProject);
+router.patch("/:projectId", requireProjectPermission("update_project"), updateProject);
+router.delete("/:projectId", requireProjectPermission("delete_project"), deleteProject);
 
 module.exports = router;

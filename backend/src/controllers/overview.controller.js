@@ -1,22 +1,76 @@
 const Workspace = require("../models/workspace.model");
 const WorkspaceMember = require("../models/workspaceMember.model");
 const Project = require("../models/project.model");
+const ProjectMember = require("../models/projectMember.model");
 const Task = require("../models/task.model");
-const Activity = require("../models/activity.model");
-const { latestActivity } = require("../services/activity.service");
+const { latestActivityAcross } = require("../services/activity.service");
+
+/**
+ * Compute the user's accessible projects across all their workspaces.
+ * Workspace owners/admins see every project in their workspaces; everyone
+ * else only sees projects they are a member of (or manage).
+ */
+async function accessibleScope(me) {
+  const memberships = await WorkspaceMember.find({ userId: me._id });
+  const owned = await Workspace.find({ ownerId: me._id }).select("_id");
+
+  const ownedIds = new Set(owned.map((w) => String(w._id)));
+
+  const roleByWorkspace = {};
+  memberships.forEach((m) => {
+    roleByWorkspace[String(m.workspaceId)] = m.role;
+  });
+  owned.forEach((w) => {
+    roleByWorkspace[String(w._id)] = "Admin";
+  });
+
+  const workspaceIds = [
+    ...new Set([...Object.keys(roleByWorkspace), ...ownedIds]),
+  ];
+
+  if (workspaceIds.length === 0) {
+    return {
+      workspaceIds: [],
+      projects: [],
+      roleByWorkspace,
+      ownedIds,
+    };
+  }
+
+  const adminWorkspaceIds = new Set(
+    Object.entries(roleByWorkspace)
+      .filter(([, role]) => role === "Admin")
+      .map(([wsId]) => wsId)
+  );
+
+  const memberProjects = await ProjectMember.find({ userId: me._id }).select("projectId");
+  const managedProjects = await Project.find({ managerId: me._id }).select("_id");
+
+  const accessibleIds = new Set([
+    ...memberProjects.map((m) => String(m.projectId)),
+    ...managedProjects.map((p) => String(p._id)),
+  ]);
+
+  if (adminWorkspaceIds.size > 0) {
+    const adminAll = await Project.find({ workspaceId: { $in: [...adminWorkspaceIds] } }).select("_id");
+    adminAll.forEach((p) => accessibleIds.add(String(p._id)));
+  }
+
+  const projects = await Project.find({
+    workspaceId: { $in: workspaceIds },
+    _id: { $in: [...accessibleIds] },
+  });
+
+  return { workspaceIds, projects, roleByWorkspace, ownedIds };
+}
 
 async function getOverview(req, res, next) {
   try {
     const me = req.user;
 
-    const memberships = await WorkspaceMember.find({ userId: me._id });
-    const owned = await Workspace.find({ ownerId: me._id }).select("_id");
+    const { workspaceIds, projects, roleByWorkspace, ownedIds } = await accessibleScope(me);
 
-    const ids = [
-      ...new Set([...memberships.map((m) => String(m.workspaceId)), ...owned.map((w) => String(w._id))]),
-    ];
-
-    if (ids.length === 0) {
+    if (workspaceIds.length === 0) {
       return res.json({
         success: true,
         overview: {
@@ -29,9 +83,7 @@ async function getOverview(req, res, next) {
       });
     }
 
-    const workspaces = await Workspace.find({ _id: { $in: ids } }).sort({ updatedAt: -1 });
-
-    const projects = await Project.find({ workspaceId: { $in: ids } });
+    const workspaces = await Workspace.find({ _id: { $in: workspaceIds } }).sort({ updatedAt: -1 });
 
     const workspaceByProject = {};
     const projectById = {};
@@ -86,7 +138,7 @@ async function getOverview(req, res, next) {
       if (task.status === "IN PROGRESS") inProgress.push(decorated);
     });
 
-    const recentActivityItems = await latestActivity(ids, 15);
+    const recentActivityItems = await latestActivityAcross(workspaceIds, projects.map((p) => p._id), 15);
 
     const decoratedActivity = recentActivityItems.map((entry) => {
       const json = entry.toJSON();
@@ -105,13 +157,13 @@ async function getOverview(req, res, next) {
           WorkspaceMember.countDocuments({ workspaceId: workspace._id }),
           Task.countDocuments({ projectId: { $in: projectIds } }),
         ]);
-        const roleByWs = {};
-        memberships.forEach((m) => {
-          roleByWs[String(m.workspaceId)] = m.role;
-        });
+        const role =
+          ownedIds.has(String(workspace._id)) || roleByWorkspace[String(workspace._id)] === "Admin"
+            ? "Admin"
+            : roleByWorkspace[String(workspace._id)] || "Member";
         return {
           ...workspace.toJSON(),
-          role: roleByWs[String(workspace._id)] || "Admin",
+          role,
           stats: { memberCount, taskCount, projectCount: workspaceProjects.length },
         };
       })
@@ -136,19 +188,13 @@ async function getMyTasks(req, res, next) {
   try {
     const me = req.user;
 
-    const memberships = await WorkspaceMember.find({ userId: me._id });
-    const owned = await Workspace.find({ ownerId: me._id }).select("_id");
+    const { workspaceIds, projects } = await accessibleScope(me);
 
-    const ids = [
-      ...new Set([...memberships.map((m) => String(m.workspaceId)), ...owned.map((w) => String(w._id))]),
-    ];
-
-    if (ids.length === 0) {
+    if (workspaceIds.length === 0) {
       return res.json({ success: true, tasks: [] });
     }
 
-    const workspaces = await Workspace.find({ _id: { $in: ids } });
-    const projects = await Project.find({ workspaceId: { $in: ids } });
+    const workspaces = await Workspace.find({ _id: { $in: workspaceIds } });
 
     const workspaceById = {};
     const projectById = {};

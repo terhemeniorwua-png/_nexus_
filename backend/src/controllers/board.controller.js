@@ -3,6 +3,8 @@ const BoardColumn = require("../models/boardColumn.model");
 const WorkspaceMember = require("../models/workspaceMember.model");
 const mongoose = require("mongoose");
 const { ApiError } = require("../middleware/errorHandler");
+const { hasProjectPermission } = require("../permissions/permissions");
+const { resolveProjectRole } = require("../services/access.service");
 const {
   ensureDefaultColumns,
   getBoard,
@@ -127,6 +129,17 @@ async function createTask(req, res, next) {
 
     const position = await getNextPosition(targetColumn._id);
 
+    // Assignment requires assign_task. Without it a new task is never assigned
+    // to someone else — it falls back to the creator.
+    let effectiveAssignee = assignedTo || null;
+    if (
+      assignedTo &&
+      String(assignedTo) !== String(req.user._id) &&
+      !hasProjectPermission(req.projectRole, "assign_task")
+    ) {
+      effectiveAssignee = req.user._id;
+    }
+
     const task = await Task.create({
       projectId: project._id,
       columnId: targetColumn._id,
@@ -138,7 +151,7 @@ async function createTask(req, res, next) {
       dueDate: dueDate ? new Date(dueDate) : null,
       tags: Array.isArray(tags) ? tags : tags ? [tags] : [],
       subtasks: Array.isArray(subtasks) ? subtasks : [],
-      assignedTo: assignedTo || null,
+      assignedTo: effectiveAssignee,
       createdBy: req.user._id,
     });
 
@@ -146,6 +159,7 @@ async function createTask(req, res, next) {
 
     await recordActivity({
       workspaceId: req.workspace._id,
+      projectId: project._id,
       userId: req.user._id,
       action: "TASK_CREATED",
       targetType: "task",
@@ -197,7 +211,10 @@ async function updateTask(req, res, next) {
     if (subtasks !== undefined) task.subtasks = Array.isArray(subtasks) ? subtasks : [];
 
     const previousAssignee = task.assignedTo ? String(task.assignedTo) : null;
-    if (assignedTo !== undefined) task.assignedTo = assignedTo || null;
+    // Reassignment requires the assign_task permission. Do not trust client input.
+    if (assignedTo !== undefined && hasProjectPermission(req.projectRole, "assign_task")) {
+      task.assignedTo = assignedTo || null;
+    }
 
     await task.save();
 
@@ -205,6 +222,7 @@ async function updateTask(req, res, next) {
 
     await recordActivity({
       workspaceId: req.workspace._id,
+      projectId: project._id,
       userId: req.user._id,
       action: "TASK_UPDATED",
       targetType: "task",
@@ -244,6 +262,7 @@ async function deleteTask(req, res, next) {
 
     await recordActivity({
       workspaceId: req.workspace._id,
+      projectId: project._id,
       userId: req.user._id,
       action: "TASK_DELETED",
       targetType: "task",
@@ -271,6 +290,7 @@ async function handleMoveTask(req, res, next) {
 
     await recordActivity({
       workspaceId: req.workspace._id,
+      projectId: project._id,
       userId: req.user._id,
       action: "TASK_MOVED",
       targetType: "task",
@@ -312,11 +332,26 @@ async function reorderTask(req, res, next) {
     if (!membership && !isOwner) {
       throw new ApiError(403, "You do not have access to this workspace");
     }
-    const role = membership ? membership.role : "Admin";
-    if (role === "Viewer") {
-      return res
-        .status(403)
-        .json({ success: false, message: "You do not have permission to perform this action" });
+
+    const resolved = await resolveProjectRole({
+      user: req.user,
+      project,
+      isOwner,
+      workspaceMemberRole: membership ? membership.role : null,
+    });
+    if (!resolved) {
+      throw new ApiError(403, "You do not have access to this project");
+    }
+    if (!hasProjectPermission(resolved.role, "update_task")) {
+      throw new ApiError(403, "You do not have permission to perform this action.");
+    }
+    const canManage = hasProjectPermission(resolved.role, "assign_task");
+    if (!canManage) {
+      const isAssignee = task.assignedTo && String(task.assignedTo) === String(req.user._id);
+      const isCreator = task.createdBy && String(task.createdBy) === String(req.user._id);
+      if (!isAssignee && !isCreator) {
+        throw new ApiError(403, "You can only modify tasks assigned to you");
+      }
     }
 
     let targetColumn = mongoose.isValidObjectId(destinationColumnId)
@@ -339,6 +374,7 @@ async function reorderTask(req, res, next) {
 
     await recordActivity({
       workspaceId: workspace._id,
+      projectId: project._id,
       userId: req.user._id,
       action: "TASK_MOVED",
       targetType: "task",

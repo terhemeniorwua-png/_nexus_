@@ -177,13 +177,26 @@ async function runSeed() {
   const [platformProject, benchmarkProject, designSystemProject] = projects.map((p) => p._id);
 
   // -------------------------------------------------------- PROJECT MEMBERS
+  // Project membership is the source of truth for project access.
+  //
+  // Personas (used by docs/authorization.md and the authz test suite):
+  //   ada       — Workspace Owner; Research team lead; COLLABORATOR on the
+  //               Engineering-owned "Nexus Platform Build" project (cross-team).
+  //   alan      — Workspace Admin + Engineering lead; PROJECT_MANAGER on platform.
+  //   linus     — Engineering member; MEMBER on platform.
+  //   margaret  — Engineering member; MEMBER on platform; submits a deliverable.
+  //   katherine — Research member; PROJECT_MANAGER on the benchmark project.
+  //   grace     — Design lead; PROJECT_MANAGER on the design system project.
+  //   barbara   — Workspace Viewer; VIEWER on the design system project.
   await ProjectMember.insertMany([
     { projectId: platformProject, userId: alan, role: "PROJECT_MANAGER" },
     { projectId: platformProject, userId: linus, role: "MEMBER" },
-    { projectId: platformProject, userId: margaret, role: "COLLABORATOR" },
+    { projectId: platformProject, userId: margaret, role: "MEMBER" },
+    { projectId: platformProject, userId: ada, role: "COLLABORATOR" },
     { projectId: benchmarkProject, userId: katherine, role: "PROJECT_MANAGER" },
     { projectId: benchmarkProject, userId: ada, role: "COLLABORATOR" },
     { projectId: designSystemProject, userId: grace, role: "PROJECT_MANAGER" },
+    { projectId: designSystemProject, userId: margaret, role: "COLLABORATOR" },
     { projectId: designSystemProject, userId: barbara, role: "VIEWER" },
   ]);
 
@@ -295,14 +308,45 @@ async function runSeed() {
     submittedAt: new Date("2026-02-10"),
   });
 
-  // ----------------------------------------------------------------- REVIEWS
-  await Review.create({
-    deliverableId: deliverable._id,
-    reviewerId: alan,
-    decision: "CHANGES_REQUESTED",
-    feedback: "Clarify the token refresh flow before v2.",
-    reviewedAt: new Date("2026-02-12"),
+  const approvedDeliverable = await Deliverable.create({
+    taskId: socketTask,
+    submittedBy: linus,
+    title: "Socket.IO auth implementation",
+    description: "Working JWT handshake middleware for socket.io",
+    fileUrl: "https://example.com/socket-auth-implementation.zip",
+    version: 1,
+    status: "APPROVED",
+    submittedAt: new Date("2026-02-14"),
   });
+
+  await Deliverable.create({
+    taskId: buttonTask,
+    submittedBy: grace,
+    title: "Button token refresh (v1)",
+    description: "Updated color and spacing tokens for buttons",
+    fileUrl: "https://example.com/button-tokens-v1.zip",
+    version: 1,
+    status: "APPROVED",
+    submittedAt: new Date("2026-02-16"),
+  });
+
+  // ----------------------------------------------------------------- REVIEWS
+  await Review.insertMany([
+    {
+      deliverableId: deliverable._id,
+      reviewerId: alan,
+      decision: "CHANGES_REQUESTED",
+      feedback: "Clarify the token refresh flow before v2.",
+      reviewedAt: new Date("2026-02-12"),
+    },
+    {
+      deliverableId: approvedDeliverable._id,
+      reviewerId: alan,
+      decision: "APPROVED",
+      feedback: "Solid implementation. Merged.",
+      reviewedAt: new Date("2026-02-15"),
+    },
+  ]);
 
   // ---------------------------------------------------------------- COMMENTS
   await Comment.insertMany([

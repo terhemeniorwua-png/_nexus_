@@ -2,13 +2,31 @@ const Project = require("../models/project.model");
 const Task = require("../models/task.model");
 const Document = require("../models/document.model");
 const BoardColumn = require("../models/boardColumn.model");
+const ProjectMember = require("../models/projectMember.model");
 const { ApiError } = require("../middleware/errorHandler");
 const { recordActivity } = require("../services/activity.service");
 const { ensureDefaultColumns } = require("../services/board.service");
+const { getAccessibleProjectIds, attachRolesToProjects } = require("../services/access.service");
 
 async function listProjects(req, res, next) {
   try {
-    const projects = await Project.find({ workspaceId: req.workspace._id }).sort({ createdAt: -1 });
+    const accessibleIds = await getAccessibleProjectIds({
+      userId: req.user._id,
+      workspaceId: req.workspace._id,
+      isOwner: Boolean(req.isOwner),
+      workspaceMemberRole: req.memberRole,
+    });
+
+    const projects = await Project.find({
+      _id: { $in: accessibleIds },
+      workspaceId: req.workspace._id,
+    }).sort({ createdAt: -1 });
+
+    await attachRolesToProjects(projects, {
+      userId: req.user._id,
+      isOwner: Boolean(req.isOwner),
+      workspaceMemberRole: req.memberRole,
+    });
 
     const data = await Promise.all(
       projects.map(async (project) => {
@@ -20,6 +38,7 @@ async function listProjects(req, res, next) {
 
         return {
           ...project.toJSON(),
+          role: project.role,
           stats: { taskCount, completedCount, documentCount },
         };
       })
@@ -44,9 +63,18 @@ async function createProject(req, res, next) {
       name: String(name).trim(),
       description: String(description || "").trim(),
       createdBy: req.user._id,
+      managerId: req.user._id,
     });
 
     await ensureDefaultColumns(project._id);
+
+    // The creator manages the project they create. Role is assigned server-side —
+    // never read from the client.
+    await ProjectMember.create({
+      projectId: project._id,
+      userId: req.user._id,
+      role: "PROJECT_MANAGER",
+    });
 
     await recordActivity({
       workspaceId: req.workspace._id,
@@ -57,7 +85,10 @@ async function createProject(req, res, next) {
       metadata: { name: project.name },
     });
 
-    res.status(201).json({ success: true, project: project.toJSON() });
+    res.status(201).json({
+      success: true,
+      project: { ...project.toJSON(), role: "PROJECT_MANAGER" },
+    });
   } catch (error) {
     next(error);
   }
@@ -65,15 +96,8 @@ async function createProject(req, res, next) {
 
 async function getProject(req, res, next) {
   try {
-    const project = await Project.findById(req.params.projectId);
-
-    if (!project) {
-      return next(new ApiError(404, "Project not found"));
-    }
-
-    if (String(project.workspaceId) !== String(req.workspace._id)) {
-      return next(new ApiError(403, "Project does not belong to this workspace"));
-    }
+    const project = req.project;
+    if (!project) return next(new ApiError(404, "Project not found"));
 
     const [taskCount, doneCount] = await Promise.all([
       Task.countDocuments({ projectId: project._id }),
@@ -84,6 +108,7 @@ async function getProject(req, res, next) {
       success: true,
       project: {
         ...project.toJSON(),
+        role: req.projectRole,
         stats: { taskCount, doneCount },
       },
     });
@@ -94,12 +119,8 @@ async function getProject(req, res, next) {
 
 async function updateProject(req, res, next) {
   try {
-    const project = await Project.findById(req.params.projectId);
+    const project = req.project;
     if (!project) return next(new ApiError(404, "Project not found"));
-
-    if (String(project.workspaceId) !== String(req.workspace._id)) {
-      return next(new ApiError(403, "Project does not belong to this workspace"));
-    }
 
     const { name, description } = req.body;
     if (name !== undefined) {
@@ -127,16 +148,13 @@ async function updateProject(req, res, next) {
 
 async function deleteProject(req, res, next) {
   try {
-    const project = await Project.findById(req.params.projectId);
+    const project = req.project;
     if (!project) return next(new ApiError(404, "Project not found"));
-
-    if (String(project.workspaceId) !== String(req.workspace._id)) {
-      return next(new ApiError(403, "Project does not belong to this workspace"));
-    }
 
     await Project.deleteOne({ _id: project._id });
     await Task.deleteMany({ projectId: project._id });
     await BoardColumn.deleteMany({ projectId: project._id });
+    await ProjectMember.deleteMany({ projectId: project._id });
     await Document.deleteMany({ workspaceId: req.workspace._id, projectId: project._id });
 
     res.json({ success: true, message: "Project deleted" });

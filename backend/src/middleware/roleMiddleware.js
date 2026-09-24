@@ -1,6 +1,7 @@
 const Workspace = require("../models/workspace.model");
 const WorkspaceMember = require("../models/workspaceMember.model");
 const { ApiError } = require("./errorHandler");
+const { workspaceRole } = require("../permissions/permissions");
 
 async function memberOf(req, _res, next) {
   try {
@@ -28,13 +29,16 @@ async function memberOf(req, _res, next) {
 
     req.workspace = workspace;
     req.memberRole = member ? member.role : "Admin";
+    req.workspaceMember = member || null;
     req.isOwner = isOwner;
+    req.workspaceRole = workspaceRole(req.memberRole, isOwner);
     next();
   } catch (error) {
     next(error);
   }
 }
 
+// Legacy helper kept for backward compatibility with existing callers.
 function requireRole(...roles) {
   return (req, res, next) => {
     if (!req.memberRole || !roles.includes(req.memberRole)) {

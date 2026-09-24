@@ -1,6 +1,7 @@
 const express = require("express");
 const { authenticate } = require("../middleware/authenticate");
-const { memberOf, requireRole } = require("../middleware/roleMiddleware");
+const { memberOf } = require("../middleware/roleMiddleware");
+const { requirePermission, documentAccess } = require("../middleware/authorize");
 const {
   listDocuments,
   createDocument,
@@ -13,11 +14,11 @@ const router = express.Router({ mergeParams: true });
 
 router.use(authenticate, memberOf);
 
-router.get("/", requireRole("Admin", "Member", "Viewer"), listDocuments);
-router.post("/", requireRole("Admin", "Member"), createDocument);
+router.get("/", requirePermission("view_document"), listDocuments);
+router.post("/", requirePermission("create_document"), createDocument);
 
-router.get("/:docId", requireRole("Admin", "Member", "Viewer"), getDocument);
-router.patch("/:docId", requireRole("Admin", "Member"), updateDocument);
-router.delete("/:docId", requireRole("Admin", "Member"), deleteDocument);
+router.get("/:docId", documentAccess("view_document"), getDocument);
+router.patch("/:docId", documentAccess("update_document"), updateDocument);
+router.delete("/:docId", documentAccess("delete_document"), deleteDocument);
 
 module.exports = router;
