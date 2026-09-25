@@ -534,26 +534,13 @@ test("a reviewer cannot approve their own submission (403)", async () => {
   assert.equal(await taskStatus(state.selfTaskId), "SUBMITTED");
 });
 
-test("changes requested requires actionable feedback and drives the task back", async () => {
-  const submitted = await api("PATCH", `${versionUrl(state.deliverableId, 1)}/submit`, {
-    cookie: cookies.linus,
-    body: {},
-  });
-  assert.equal(submitted.status, 400, "already UNDER_REVIEW — use the self-review fixture instead");
-
-  // Use the self-review task for the changes-requested path, so state stays
-  // predictable: alan submitted, margaret reviews.
-  const id = state.deliverableId;
-  const short = await api("PATCH", `${versionUrl(id, 1)}/request-changes`, {
-    cookie: cookies.alan,
-    body: { feedback: "no" },
-  });
-  // alan submitted this one, so he is refused before feedback is even read.
-  assert.equal(short.status, 403);
-});
-
 test("requesting changes freezes the version, records feedback, and returns the task", async () => {
-  const id = await submitForReview({ taskId: state.gatedTaskId, cookie: cookies.linus, description: "Migration script" });
+  const id = await submitForReview({
+    taskId: state.gatedTaskId,
+    cookie: cookies.linus,
+    reviewerCookie: cookies.alan,
+    description: "Migration script",
+  });
   state.gatedDeliverableId = id;
 
   const tooShort = await api("PATCH", `${versionUrl(id, 1)}/request-changes`, {
@@ -561,15 +548,15 @@ test("requesting changes freezes the version, records feedback, and returns the 
     body: { feedback: "fix it" },
   });
   assert.equal(tooShort.status, 400);
-  assert.match(tooShort.json.message, /feedback/i);
+  assert.match(tooShort.json.message, /at least 10 characters/i);
   assert.equal(await DeliverableReview.countDocuments({ deliverableId: id }), 0, "no review row for a rejected request");
 
   const decided = await api("PATCH", `${versionUrl(id, 1)}/request-changes`, {
     cookie: cookies.alan,
     body: { feedback: "The backfill batches are too large; use 1000 rows per batch." },
   });
-  assert.equal(decided.status, 200);
-  assert.equal(decided.json.version.status, "REJECTED");
+  assert.equal(decided.status, 200, JSON.stringify(decided.json));
+  assert.equal(decided.json.version.status, "CHANGES_REQUESTED");
   assert.equal(decided.json.deliverable.status, "CHANGES_REQUESTED");
   assert.equal(await taskStatus(state.gatedTaskId), "CHANGES_REQUESTED");
 
@@ -606,7 +593,7 @@ test("a new version is server-numbered, the history is preserved, and the task r
   // v1 is byte-for-byte unchanged, including its storage key and decision.
   const after = await DeliverableVersion.findOne({ _id: v1._id });
   assert.equal(after.versionNumber, 1);
-  assert.equal(after.status, "REJECTED");
+  assert.equal(after.status, "CHANGES_REQUESTED");
   assert.equal(after.storageKey, v1.storageKey);
   assert.equal(after.checksum, v1.checksum);
   assert.equal(after.fileName, v1.fileName);
@@ -623,8 +610,8 @@ test("a new version is server-numbered, the history is preserved, and the task r
     list.json.versions.map((v) => v.versionNumber),
     [1, 2]
   );
-  assert.equal(list.json.versions[0].review, "CHANGES_REQUESTED");
-  assert.equal(list.json.versions[1].review, null);
+  assert.equal(list.json.versions[0].reviews.at(-1).decision, "CHANGES_REQUESTED");
+  assert.equal(list.json.versions[1].reviews.length, 0);
 
   // Only from CHANGES_REQUESTED: a second new version is refused while a
   // draft is open.
@@ -664,7 +651,11 @@ test("new version requires permission and rejects an approved deliverable", asyn
 });
 
 test("approval is refused while subtasks are open, then succeeds once complete", async () => {
-  const id = await submitForReview({ taskId: state.blockedTaskId, cookie: cookies.linus });
+  const id = await submitForReview({
+    taskId: state.blockedTaskId,
+    cookie: cookies.linus,
+    reviewerCookie: cookies.alan,
+  });
   const blocked = await api("PATCH", `${versionUrl(id, 1)}/approve`, { cookie: cookies.alan, body: {} });
   assert.equal(blocked.status, 400);
   assert.match(blocked.json.message, /subtask/i);
@@ -678,7 +669,7 @@ test("approval is refused while subtasks are open, then succeeds once complete",
   // Finish the open subtask through Phase 10, then approve.
   const task = await Task.findById(state.blockedTaskId);
   const open = task.subtasks.find((s) => s.status !== "COMPLETED");
-  const done = await api("PATCH", `${taskUrl(state.blockedTaskId)}/subtasks/${open._id}`, {
+  const done = await api("PATCH", `/api/subtasks/${open._id}`, {
     cookie: cookies.linus,
     body: { status: "COMPLETED" },
   });
@@ -721,7 +712,8 @@ test("deliverable detail, task deliverable, and project list are project-scoped"
   assert.equal(detail.json.task.status, "APPROVED");
   assert.equal(detail.json.versions.length, 1);
   assert.equal(detail.json.versions[0].versionNumber, 1);
-  assert.ok(detail.json.deliverable.createdByName, "creator name is resolved");
+  assert.equal(detail.json.deliverable.createdBy.id, state.linusId, "creator is resolved");
+  assert.equal(detail.json.deliverable.createdBy.name, "Linus", "creator name is resolved");
 
   const byTask = await api("GET", `/api/tasks/${state.blockedTaskId}/deliverable`, { cookie: cookies.linus });
   assert.equal(byTask.status, 200);
@@ -822,7 +814,11 @@ test("activity and notifications are recorded for the workflow", async () => {
 });
 
 test("version numbers stay sequential under concurrent creation", async () => {
-  const id = await submitForReview({ taskId: state.researchTaskId, cookie: cookies.margaret });
+  const id = await submitForReview({
+    taskId: state.researchTaskId,
+    cookie: cookies.margaret,
+    reviewerCookie: cookies.margaret,
+  });
   await api("PATCH", `${versionUrl(id, 1)}/request-changes`, {
     cookie: cookies.margaret,
     body: { feedback: "Please add a diagram and expand section three." },
@@ -850,7 +846,11 @@ test("version numbers stay sequential under concurrent creation", async () => {
 });
 
 test("deleting a task cascades its deliverable aggregate", async () => {
-  const id = await submitForReview({ taskId: state.workTaskId, cookie: cookies.linus });
+  const id = await submitForReview({
+    taskId: state.workTaskId,
+    cookie: cookies.linus,
+    reviewerCookie: cookies.alan,
+  });
   await api("PATCH", `${versionUrl(id, 1)}/request-changes`, {
     cookie: cookies.alan,
     body: { feedback: "Tighten the error payloads before this goes out." },

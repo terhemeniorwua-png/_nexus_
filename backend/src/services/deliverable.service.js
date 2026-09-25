@@ -379,6 +379,10 @@ async function createNextVersion({
   file,
   description,
 }) {
+  // Ownership before state, like every other transition here: a caller who
+  // may not submit should not be able to probe the deliverable's status.
+  assertMaySubmitForTask({ task, user, projectRole });
+
   if (deliverable.status === "APPROVED") {
     throw new ApiError(400, "This deliverable is approved — approved work is final");
   }
@@ -388,8 +392,6 @@ async function createNextVersion({
       "A new version can only be created after changes have been requested"
     );
   }
-
-  assertMaySubmitForTask({ task, user, projectRole });
 
   const cleanDescription = String(description || "").trim();
   if (cleanDescription.length > 5000) {
@@ -670,18 +672,22 @@ async function decide({ deliverable, version, task, project, user, projectRole, 
       });
     }
 
+    // Array form: `create(doc, {})` is read by Mongoose as a second document,
+    // not as options, and then validation fails on the empty one.
     const review = await DeliverableReview.create(
-      {
-        deliverableId: deliverable._id,
-        deliverableVersionId: version._id,
-        versionNumber: version.versionNumber,
-        reviewerId: user._id,
-        decision,
-        feedback: cleanFeedback,
-        reviewedAt: now,
-      },
+      [
+        {
+          deliverableId: deliverable._id,
+          deliverableVersionId: version._id,
+          versionNumber: version.versionNumber,
+          reviewerId: user._id,
+          decision,
+          feedback: cleanFeedback,
+          reviewedAt: now,
+        },
+      ],
       session ? { session } : {}
-    );
+    ).then((docs) => docs[0]);
 
     if (registerUndo) {
       registerUndo(async () => {
