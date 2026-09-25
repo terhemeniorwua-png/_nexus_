@@ -13,6 +13,9 @@
 # testing
 /coverage
 
+# uploaded deliverable files (runtime data, recreated by the server)
+/backend/uploads/
+
 # next.js
 /.next/
 /out/

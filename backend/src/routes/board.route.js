@@ -44,12 +44,13 @@ router.post(
 
 // Deliverable submission for a specific task. Project-scoped alias of the
 // canonical `POST /api/tasks/:taskId/deliverables` (Phase 12): same service,
-// same ownership rule, same multipart body. Ownership is enforced in the
-// deliverable service, which knows about the assignee, the creator and
-// `assign_task` holders in one place.
+// same multipart body. `taskOwnership` loads the task, proves it belongs to
+// this project and applies the assignee/creator rule; the deliverable service
+// re-checks ownership independently.
 router.post(
   "/tasks/:taskId/deliverables",
   requireProjectPermission("create_deliverable"),
+  taskOwnership,
   deliverableUpload,
   handleUploadError,
   createDeliverable

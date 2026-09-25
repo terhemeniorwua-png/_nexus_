@@ -26,7 +26,8 @@ const ProjectMember = require("../src/models/projectMember.model");
 const BoardColumn = require("../src/models/boardColumn.model");
 const Task = require("../src/models/task.model");
 const Deliverable = require("../src/models/deliverable.model");
-const Review = require("../src/models/review.model");
+const DeliverableVersion = require("../src/models/deliverableVersion.model");
+const DeliverableReview = require("../src/models/deliverableReview.model");
 const Document = require("../src/models/document.model");
 const Activity = require("../src/models/activity.model");
 const app = require("../src/app");
@@ -39,14 +40,14 @@ let base;
 const state = {};
 const cookies = {};
 
-async function api(method, path, { cookie, body } = {}) {
+async function api(method, path, { cookie, body, form } = {}) {
   const headers = {};
   if (cookie) headers.Cookie = cookie;
   if (body) headers["Content-Type"] = "application/json";
   const res = await fetch(`${base}${path}`, {
     method,
     headers,
-    body: body ? JSON.stringify(body) : undefined,
+    body: form || (body ? JSON.stringify(body) : undefined),
   });
   const text = await res.text();
   let json = null;
@@ -56,6 +57,17 @@ async function api(method, path, { cookie, body } = {}) {
     // non-JSON response body
   }
   return { status: res.status, json };
+}
+
+// Deliverable uploads are multipart since Phase 12. These bytes really are a
+// PDF: the storage service checks magic bytes, not the file name.
+const PDF_BYTES = Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n" + "x".repeat(200));
+
+function pdfForm({ name = "spec.pdf", description } = {}) {
+  const form = new FormData();
+  form.append("file", new Blob([PDF_BYTES], { type: "application/pdf" }), name);
+  if (description) form.append("description", description);
+  return form;
 }
 
 async function login(email) {
@@ -153,7 +165,7 @@ async function buildFixtures() {
     projectId: platform._id,
     columnId: platformCols["In Progress"]._id,
     title: "Socket auth handshake",
-    status: "IN PROGRESS",
+    status: "APPROVED",
     assignedTo: users.linus._id,
     createdBy: users.alan._id,
   });
@@ -161,7 +173,7 @@ async function buildFixtures() {
     projectId: platform._id,
     columnId: platformCols["In Progress"]._id,
     title: "Auth API spec",
-    status: "IN PROGRESS",
+    status: "SUBMITTED",
     assignedTo: users.margaret._id,
     createdBy: users.alan._id,
   });
@@ -186,42 +198,79 @@ async function buildFixtures() {
   state.designTaskId = String(designTask._id);
   state.platformDoneColumnId = String(platformCols["Done"]._id);
 
-  // --- Deliverables + reviews ----------------------------------------------
+  // --- Deliverables (Phase 12 aggregate + versions + reviews) ---------------
+  const platformTasks = {
+    workspaceId: workspace._id,
+    projectId: platform._id,
+  };
+
   const authDeliverable = await Deliverable.create({
+    ...platformTasks,
     taskId: authTask._id,
-    submittedBy: users.margaret._id,
+    createdBy: users.margaret._id,
     title: "Auth spec v1",
-    description: "First draft",
-    fileUrl: "https://example.test/auth-v1.pdf",
-    version: 1,
     status: "SUBMITTED",
-    submittedAt: new Date("2026-02-10"),
+    currentVersion: 1,
   });
   const socketDeliverable = await Deliverable.create({
+    ...platformTasks,
     taskId: socketTask._id,
-    submittedBy: users.linus._id,
+    createdBy: users.linus._id,
     title: "Socket impl",
-    fileUrl: "https://example.test/socket.zip",
-    version: 1,
     status: "APPROVED",
-    submittedAt: new Date("2026-02-14"),
+    currentVersion: 1,
+    approvedVersion: 1,
   });
   const designDeliverable = await Deliverable.create({
+    workspaceId: workspace._id,
+    projectId: designSystem._id,
     taskId: designTask._id,
-    submittedBy: users.grace._id,
+    createdBy: users.grace._id,
     title: "Button tokens",
-    fileUrl: "https://example.test/buttons.zip",
-    version: 1,
     status: "APPROVED",
-    submittedAt: new Date("2026-02-16"),
+    currentVersion: 1,
+    approvedVersion: 1,
   });
 
   state.authDeliverableId = String(authDeliverable._id);
   state.socketDeliverableId = String(socketDeliverable._id);
   state.designDeliverableId = String(designDeliverable._id);
 
-  await Review.create({
+  const versionFor = (deliverable, { number = 1, status, submitter, at, fileName }) =>
+    DeliverableVersion.create({
+      deliverableId: deliverable._id,
+      versionNumber: number,
+      status,
+      fileName: fileName || `v${number}.pdf`,
+      storageKey: `deliverables/${workspace._id}/${deliverable.projectId}/${deliverable._id}/v${number}.pdf`,
+      fileUrl: `/api/deliverables/${deliverable._id}/file/v${number}.pdf`,
+      fileSize: PDF_BYTES.length,
+      mimeType: "application/pdf",
+      checksum: "b".repeat(64),
+      submittedBy: submitter,
+      submittedAt: at,
+    });
+
+  await versionFor(authDeliverable, {
+    status: "SUBMITTED",
+    submitter: users.margaret._id,
+    at: new Date("2026-02-10"),
+  });
+  const socketVersion = await versionFor(socketDeliverable, {
+    status: "APPROVED",
+    submitter: users.linus._id,
+    at: new Date("2026-02-14"),
+  });
+  await versionFor(designDeliverable, {
+    status: "APPROVED",
+    submitter: users.grace._id,
+    at: new Date("2026-02-16"),
+  });
+
+  await DeliverableReview.create({
     deliverableId: socketDeliverable._id,
+    deliverableVersionId: socketVersion._id,
+    versionNumber: 1,
     reviewerId: users.alan._id,
     decision: "APPROVED",
     feedback: "Merged.",
@@ -460,59 +509,92 @@ test("task ownership restricts update to assignee/creator for members", async ()
   assert.match(other.json.message, /only modify tasks assigned to you/i);
 });
 
-test("deliverable submission requires upload permission plus task ownership", async () => {
-  // margaret is the current assignee of authTask (submitted earlier) → allowed.
-  const own = await api("POST", `${projectUrl(state.platformId)}/tasks/${state.authTaskId}/deliverables`, {
-    cookie: cookies.margaret,
-    body: { title: "Auth spec v2", fileUrl: "https://example.test/auth-v2.pdf" },
+test("deliverable submission requires create_deliverable plus task ownership", async () => {
+  // A client-supplied fileUrl is not a submission: the route takes multipart,
+  // so a JSON body carries no file and is refused (§22).
+  const jsonInstead = await api("POST", `${projectUrl(state.benchmarkId)}/tasks/${state.dataTaskId}/deliverables`, {
+    cookie: cookies.katherine,
+    body: { title: "Benchmark v1", fileUrl: "https://example.test/bench-v1.pdf" },
   });
-  assert.equal(own.status, 201);
+  assert.equal(jsonInstead.status, 400);
 
-  // linus is not the assignee/creator of authTask → ownership fails.
+  // The assignee of that task can submit for real.
+  const real = await api("POST", `${projectUrl(state.benchmarkId)}/tasks/${state.dataTaskId}/deliverables`, {
+    cookie: cookies.katherine,
+    form: pdfForm({ name: "bench-v1.pdf" }),
+  });
+  assert.equal(real.status, 201, JSON.stringify(real.json));
+  assert.equal(real.json.deliverable.taskId, state.dataTaskId);
+
+  // authTask already carries a deliverable: a second one is a conflict, not a
+  // second aggregate.
+  const duplicate = await api("POST", `${projectUrl(state.platformId)}/tasks/${state.authTaskId}/deliverables`, {
+    cookie: cookies.margaret,
+    form: pdfForm({ name: "auth-v2.pdf" }),
+  });
+  assert.equal(duplicate.status, 409);
+
+  // linus is neither assignee nor creator of authTask → ownership fails.
   const notOwner = await api("POST", `${projectUrl(state.platformId)}/tasks/${state.authTaskId}/deliverables`, {
     cookie: cookies.linus,
-    body: { title: "Not mine", fileUrl: "https://example.test/x.pdf" },
+    form: pdfForm({ name: "x.pdf" }),
   });
   assert.equal(notOwner.status, 403);
 });
 
-test("deliverable review is restricted to managers, owners and admins", async () => {
+test("deliverable decisions are restricted to managers, owners and admins", async () => {
+  const versionUrl = (id, n) => `/api/deliverables/${id}/versions/${n}`;
+
   // MEMBER (margaret) cannot approve.
-  const memberReview = await api("POST", `${projectUrl(state.platformId)}/deliverables/${state.authDeliverableId}/review`, {
+  const memberApprove = await api("PATCH", `${versionUrl(state.authDeliverableId, 1)}/approve`, {
     cookie: cookies.margaret,
     body: { decision: "APPROVED", feedback: "fine" },
   });
+  assert.equal(memberApprove.status, 403);
+
+  // margaret submitted this version herself, so even a manager-permitted
+  // reviewer other than her cannot shortcut the review step.
+  const memberReview = await api("PATCH", `${versionUrl(state.authDeliverableId, 1)}/review`, {
+    cookie: cookies.linus,
+    body: {},
+  });
   assert.equal(memberReview.status, 403);
 
-  // PROJECT_MANAGER (alan) can approve.
-  const approve = await api("POST", `${projectUrl(state.platformId)}/deliverables/${state.authDeliverableId}/review`, {
+  // PROJECT_MANAGER (alan) opens the review and approves.
+  const start = await api("PATCH", `${versionUrl(state.authDeliverableId, 1)}/review`, {
     cookie: cookies.alan,
-    body: { decision: "APPROVED", feedback: "Looks good" },
+    body: {},
   });
-  assert.equal(approve.status, 200);
-  assert.equal(approve.json.deliverable.status, "APPROVED");
+  assert.equal(start.status, 200, JSON.stringify(start.json));
 
-  // Submit owner (margaret) may resubmit → back to SUBMITTED, version bumped.
-  const resubmit = await api("PATCH", `${projectUrl(state.platformId)}/deliverables/${state.authDeliverableId}`, {
-    cookie: cookies.margaret,
-    body: { status: "SUBMITTED" },
+  const approve = await api("PATCH", `${versionUrl(state.authDeliverableId, 1)}/approve`, {
+    cookie: cookies.alan,
+    body: { feedback: "Looks good" },
   });
-  assert.equal(resubmit.status, 200);
-  assert.equal(resubmit.json.deliverable.version, 2);
-  assert.equal(resubmit.json.deliverable.status, "SUBMITTED");
+  assert.equal(approve.status, 200, JSON.stringify(approve.json));
+  assert.equal(approve.json.deliverable.status, "APPROVED");
+  assert.equal(approve.json.deliverable.approvedVersion, 1);
+
+  // Approved work is final: no further version from the submitter.
+  const another = await api("POST", `/api/deliverables/${state.authDeliverableId}/versions`, {
+    cookie: cookies.margaret,
+    form: pdfForm({ name: "v2.pdf" }),
+  });
+  assert.equal(another.status, 400);
 });
 
 test("Viewer can read deliverables but cannot submit or review", async () => {
   const list = await api("GET", `${projectUrl(state.designSystemId)}/deliverables`, { cookie: cookies.barbara });
   assert.equal(list.status, 200);
 
-  const design = await api("GET", `${projectUrl(state.designSystemId)}/deliverables/${state.designDeliverableId}`, {
+  const design = await api("GET", `/api/deliverables/${state.designDeliverableId}`, {
     cookie: cookies.barbara,
   });
   assert.equal(design.status, 200);
   assert.equal(design.json.deliverable.title, "Button tokens");
+  assert.equal(design.json.versions.length, 1);
 
-  const review = await api("POST", `${projectUrl(state.designSystemId)}/deliverables/${state.designDeliverableId}/review`, {
+  const review = await api("PATCH", `/api/deliverables/${state.designDeliverableId}/versions/1/approve`, {
     cookie: cookies.barbara,
     body: { decision: "APPROVED" },
   });
@@ -520,7 +602,7 @@ test("Viewer can read deliverables but cannot submit or review", async () => {
 
   const submit = await api("POST", `${projectUrl(state.designSystemId)}/tasks/${state.designTaskId}/deliverables`, {
     cookie: cookies.barbara,
-    body: { title: "Nope", fileUrl: "https://example.test/x.pdf" },
+    form: pdfForm({ name: "x.pdf" }),
   });
   assert.equal(submit.status, 403);
 });

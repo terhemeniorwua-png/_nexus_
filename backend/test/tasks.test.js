@@ -30,6 +30,7 @@ const ProjectMember = require("../src/models/projectMember.model");
 const BoardColumn = require("../src/models/boardColumn.model");
 const Task = require("../src/models/task.model");
 const Deliverable = require("../src/models/deliverable.model");
+const DeliverableVersion = require("../src/models/deliverableVersion.model");
 const Comment = require("../src/models/comment.model");
 const app = require("../src/app");
 
@@ -201,15 +202,31 @@ async function buildFixtures() {
   state.t8Id = String(t8._id);
   state.otherTaskId = String(otherTask._id);
 
-  // Deliverable + comment attached to t3 to verify delete-cascade.
+  // Deliverable (Phase 12 shape: one aggregate per task, versions in their own
+  // collection) + comment attached to t3 to verify delete-cascade.
   const dlv = await Deliverable.create({
     taskId: t3._id,
-    submittedBy: users.margaret._id,
+    workspaceId: wsA._id,
+    projectId: platform._id,
+    createdBy: users.margaret._id,
     title: "Review draft",
     status: "SUBMITTED",
-    submittedAt: new Date("2026-02-01"),
+    currentVersion: 1,
   });
   state.t3DeliverableId = String(dlv._id);
+  await DeliverableVersion.create({
+    deliverableId: dlv._id,
+    versionNumber: 1,
+    status: "SUBMITTED",
+    fileName: "draft.pdf",
+    storageKey: `deliverables/${wsA._id}/${platform._id}/${dlv._id}/v1-draft.pdf`,
+    fileUrl: `/api/deliverables/${dlv._id}/file/draft.pdf`,
+    fileSize: 1024,
+    mimeType: "application/pdf",
+    checksum: "a".repeat(64),
+    submittedBy: users.margaret._id,
+    submittedAt: new Date("2026-02-01"),
+  });
   await Comment.create({ projectId: platform._id, taskId: t3._id, userId: users.margaret._id, content: "Ready for review" });
 }
 

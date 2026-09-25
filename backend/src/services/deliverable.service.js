@@ -767,13 +767,17 @@ async function recordDeliverableActivity({ project, task, user, action, delivera
     projectId: project._id,
     userId: user._id,
     action,
-    targetType: version ? "deliverable" : "task",
-    targetId: version ? version._id : task._id,
+    // Everything about a deliverable is recorded against the deliverable, not
+    // against the individual version: one timeline per deliverable instead of
+    // a story scattered across rows that only make sense together.
+    targetType: "deliverable",
+    targetId: deliverable._id,
     metadata: {
       deliverableId: String(deliverable._id),
       taskId: String(task._id),
       taskTitle: task.title,
       projectName: project.name,
+      versionId: version ? String(version._id) : undefined,
       versionNumber: version ? version.versionNumber : undefined,
       ...metadata,
     },

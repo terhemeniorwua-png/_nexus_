@@ -23,6 +23,7 @@ import {
 import { useResource, useMutation } from "@/hooks/useResource";
 import { useAuth } from "@/context/AuthContext";
 import ProgressBar from "@/components/workspace/ProgressBar";
+import DeliverablePanel from "@/components/workspace/Deliverables/DeliverablePanel";
 import {
   SUBTASK_STATUS_META,
   taskStatusMeta,
@@ -623,6 +624,13 @@ export default function TaskDetailPage() {
                 )}
               </div>
             </section>
+
+            <DeliverablePanel
+              taskId={task.id}
+              role={role}
+              isAssignee={isAssignee}
+              onChanged={refetch}
+            />
           </main>
         </div>
 

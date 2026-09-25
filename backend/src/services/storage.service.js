@@ -145,7 +145,6 @@ function sanitizeFileName(originalName) {
   const raw = String(originalName || "").trim();
   const base = raw.split(/[\\/]/).pop() || "upload";
   const cleaned = base
-    // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u001f\u007f]/g, "")
     .replace(/[^A-Za-z0-9._-]+/g, "_")
     .replace(/^\.+/, "")

@@ -44,7 +44,9 @@ const Notification = require("../src/models/notification.model");
 const app = require("../src/app");
 
 const PASSWORD = "Password123!";
-const USER_NAMES = ["ada", "alan", "linus", "margaret", "barbara", "outsider", "ghost"];
+// katherine is a workspace member but NOT a member of the platform project —
+// the "same workspace, wrong project" case.
+const USER_NAMES = ["ada", "alan", "linus", "margaret", "katherine", "barbara", "outsider", "ghost"];
 
 let server;
 let base;
@@ -115,6 +117,7 @@ async function buildFixtures() {
     { workspaceId: wsA._id, userId: users.alan._id, role: "Admin" },
     { workspaceId: wsA._id, userId: users.linus._id, role: "Member" },
     { workspaceId: wsA._id, userId: users.margaret._id, role: "Member" },
+    { workspaceId: wsA._id, userId: users.katherine._id, role: "Member" },
     { workspaceId: wsA._id, userId: users.barbara._id, role: "Viewer" },
   ]);
 
@@ -173,6 +176,8 @@ async function buildFixtures() {
   });
   // The PM is the assignee, so this is the self-approval case.
   const selfReview = await makeTask(users.alan._id, "IN_PROGRESS", "PM writes, PM cannot approve");
+  // Reserved for the delete-cascade test at the end of the file.
+  const cascade = await makeTask(users.linus._id, "IN_PROGRESS", "Doomed task");
   // ASSIGNED, not yet started: submitting needs IN_PROGRESS first.
   const fresh = await makeTask(users.linus._id, "ASSIGNED", "Not started yet", {
     columnId: cols["To Do"]._id,
@@ -183,6 +188,7 @@ async function buildFixtures() {
   state.blockedTaskId = String(blocked._id);
   state.selfTaskId = String(selfReview._id);
   state.freshTaskId = String(fresh._id);
+  state.cascadeTaskId = String(cascade._id);
 
   // --- Cross-project + cross-workspace IDOR targets ------------------------
   const other = await Project.create({
@@ -730,8 +736,8 @@ test("deliverable detail, task deliverable, and project list are project-scoped"
 
   // Viewer may read.
   assert.equal((await api("GET", dlvUrl(id), { cookie: cookies.barbara })).status, 200);
-  // Non-member of the project → 403.
-  assert.equal((await api("GET", dlvUrl(id), { cookie: cookies.margaret })).status, 403);
+  // Workspace member who is not in this project → 403.
+  assert.equal((await api("GET", dlvUrl(id), { cookie: cookies.katherine })).status, 403);
   // Unknown deliverable → 404.
   assert.equal((await api("GET", dlvUrl("000000000000000000000000"), { cookie: cookies.linus })).status, 404);
   // Malformed id → 404.
@@ -766,7 +772,7 @@ test("IDOR: every deliverable endpoint refuses outsiders and other projects", as
 
   // A member of a different project in the same workspace is refused too.
   for (const [method, url] of cases.slice(0, 5)) {
-    const res = await api(method, url, { cookie: cookies.margaret, body: method === "GET" ? undefined : {} });
+    const res = await api(method, url, { cookie: cookies.katherine, body: method === "GET" ? undefined : {} });
     assert.ok([403, 404].includes(res.status), `${method} ${url} leaked across projects: ${res.status}`);
   }
 });
@@ -792,7 +798,7 @@ test("downloads are authorized and return the stored bytes", async () => {
     403
   );
   assert.equal(
-    (await fetch(`${base}${versionUrl(deliverable._id, 1)}/download`, { headers: { Cookie: cookies.margaret } })).status,
+    (await fetch(`${base}${versionUrl(deliverable._id, 1)}/download`, { headers: { Cookie: cookies.katherine } })).status,
     403
   );
   // No unauthenticated static path to the file.
@@ -814,15 +820,18 @@ test("activity and notifications are recorded for the workflow", async () => {
 });
 
 test("version numbers stay sequential under concurrent creation", async () => {
+  // margaret submitted it, so ada (the workspace owner, hence an admin in every
+  // project of this workspace) is the reviewer — self-review is refused.
   const id = await submitForReview({
     taskId: state.researchTaskId,
     cookie: cookies.margaret,
-    reviewerCookie: cookies.margaret,
+    reviewerCookie: cookies.ada,
   });
-  await api("PATCH", `${versionUrl(id, 1)}/request-changes`, {
-    cookie: cookies.margaret,
+  const asked = await api("PATCH", `${versionUrl(id, 1)}/request-changes`, {
+    cookie: cookies.ada,
     body: { feedback: "Please add a diagram and expand section three." },
   });
+  assert.equal(asked.status, 200, JSON.stringify(asked.json));
 
   // Two simultaneous uploads: exactly one becomes v2, the other gets 409.
   const [a, b] = await Promise.all([
@@ -836,7 +845,11 @@ test("version numbers stay sequential under concurrent creation", async () => {
     }),
   ]);
   const statuses = [a.status, b.status].sort();
-  assert.deepEqual(statuses, [201, 409], `concurrent create gave ${statuses}`);
+  assert.deepEqual(
+    statuses,
+    [201, 409],
+    `concurrent create gave ${statuses}: ${JSON.stringify(a.json)} / ${JSON.stringify(b.json)}`
+  );
 
   const versions = await DeliverableVersion.find({ deliverableId: id }).sort({ versionNumber: 1 });
   assert.deepEqual(
@@ -847,7 +860,7 @@ test("version numbers stay sequential under concurrent creation", async () => {
 
 test("deleting a task cascades its deliverable aggregate", async () => {
   const id = await submitForReview({
-    taskId: state.workTaskId,
+    taskId: state.cascadeTaskId,
     cookie: cookies.linus,
     reviewerCookie: cookies.alan,
   });
@@ -863,7 +876,7 @@ test("deleting a task cascades its deliverable aggregate", async () => {
   const versionCount = await DeliverableVersion.countDocuments({ deliverableId: id });
   assert.equal(versionCount, 2);
 
-  const removed = await api("DELETE", taskUrl(state.workTaskId), { cookie: cookies.alan });
+  const removed = await api("DELETE", taskUrl(state.cascadeTaskId), { cookie: cookies.alan });
   assert.equal(removed.status, 200);
 
   assert.equal(await Deliverable.countDocuments({ _id: id }), 0);

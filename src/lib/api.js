@@ -1,12 +1,20 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
+// FormData bodies must reach fetch untouched: the browser generates the
+// multipart boundary itself, so setting Content-Type here would corrupt the
+// request (boundary missing) or make the server hang waiting for a body.
+function isFormData(body) {
+  return typeof FormData !== "undefined" && body instanceof FormData;
+}
+
 export async function apiRequest(path, options = {}) {
-  const { body, ...rest } = options;
+  const { body, headers, ...rest } = options;
+  const multipart = isFormData(body);
 
   const response = await fetch(`${API_URL}${path}`, {
     credentials: "include",
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? (typeof body === "string" ? body : JSON.stringify(body)) : undefined,
+    headers: multipart ? headers : body ? { "Content-Type": "application/json", ...headers } : headers,
+    body: multipart ? body : body ? (typeof body === "string" ? body : JSON.stringify(body)) : undefined,
     ...rest,
   });
 

@@ -59,6 +59,65 @@ export const SUBTASK_STATUS_META = {
   COMPLETED: { label: "Completed", color: "#22c55e" },
 };
 
+// Phase 12 — deliverable version statuses. A version follows the same lifecycle
+// as the task it belongs to, which is why the labels match TASK_STATUS_META.
+export const DELIVERABLE_STATUSES = [
+  "DRAFT",
+  "SUBMITTED",
+  "UNDER_REVIEW",
+  "CHANGES_REQUESTED",
+  "APPROVED",
+];
+
+export const DELIVERABLE_STATUS_META = {
+  DRAFT: { label: "Draft", color: "#8b8b91" },
+  SUBMITTED: { label: "Submitted", color: "#a855f7" },
+  UNDER_REVIEW: { label: "Under review", color: "#eab308" },
+  CHANGES_REQUESTED: { label: "Changes requested", color: "#f97316" },
+  APPROVED: { label: "Approved", color: "#22c55e" },
+};
+
+export function deliverableStatusMeta(status) {
+  return (
+    DELIVERABLE_STATUS_META[status] || { label: status || "—", color: "#8b8b91" }
+  );
+}
+
+// Mirrors the server-side allowlist in services/storage.service.js. The server
+// revalidates every upload; this only filters the file picker.
+export const DELIVERABLE_ACCEPT =
+  ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md,.png,.jpg,.jpeg,.gif,.webp,.zip,.tar,.gz,.7z,.mp3,.wav,.m4a,.mp4,.webm,.json,.html";
+
+// Roles that may review, approve, or request changes (Phase 9 permission
+// matrix). Everyone else can contribute files for their own tasks only.
+export const REVIEWER_ROLES = ["WORKSPACE_OWNER", "ADMIN", "PROJECT_MANAGER"];
+
+export const CONTRIBUTOR_ROLES = [...REVIEWER_ROLES, "MEMBER", "COLLABORATOR"];
+
+export const DELIVERABLE_ENDPOINTS = {
+  task: (taskId) => `/tasks/${taskId}/deliverable`,
+  create: (taskId) => `/tasks/${taskId}/deliverables`,
+  deliverable: (deliverableId) => `/deliverables/${deliverableId}`,
+  versions: (deliverableId) => `/deliverables/${deliverableId}/versions`,
+  version: (deliverableId, versionNumber) =>
+    `/deliverables/${deliverableId}/versions/${versionNumber}`,
+  submit: (deliverableId, versionNumber) =>
+    `/deliverables/${deliverableId}/versions/${versionNumber}/submit`,
+  startReview: (deliverableId, versionNumber) =>
+    `/deliverables/${deliverableId}/versions/${versionNumber}/review`,
+  approve: (deliverableId, versionNumber) =>
+    `/deliverables/${deliverableId}/versions/${versionNumber}/approve`,
+  requestChanges: (deliverableId, versionNumber) =>
+    `/deliverables/${deliverableId}/versions/${versionNumber}/request-changes`,
+  download: (deliverableId, versionNumber) =>
+    `/deliverables/${deliverableId}/versions/${versionNumber}/download`,
+};
+
+/** The server returns a path already rooted at /api; apiRequest wants the rest. */
+export function toApiPath(path) {
+  return path.startsWith("/api/") ? path.slice(4) : path;
+}
+
 export function taskStatusMeta(status) {
   return (
     TASK_STATUS_META[status] || { label: status || "—", color: "#8b8b91" }
@@ -150,4 +209,26 @@ export function formatWeight(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "0";
   return String(Math.round(n * 100) / 100);
+}
+
+/** Human-readable file size for the deliverable list (bytes → KB/MB). */
+export function formatFileSize(bytes) {
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n <= 0) return "0 B";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round((n / 1024) * 10) / 10} KB`;
+  return `${Math.round((n / (1024 * 1024)) * 10) / 10} MB`;
+}
+
+export function formatDateTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }

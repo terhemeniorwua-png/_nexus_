@@ -16,7 +16,9 @@ const ProjectResource = require("../models/projectResource.model");
 const BoardColumn = require("../models/boardColumn.model");
 const Task = require("../models/task.model");
 const Deliverable = require("../models/deliverable.model");
-const Review = require("../models/review.model");
+const DeliverableVersion = require("../models/deliverableVersion.model");
+const DeliverableReview = require("../models/deliverableReview.model");
+const storage = require("../services/storage.service");
 const Comment = require("../models/comment.model");
 const Notification = require("../models/notification.model");
 const Activity = require("../models/activity.model");
@@ -38,7 +40,8 @@ const MODELS = [
   BoardColumn,
   Task,
   Deliverable,
-  Review,
+  DeliverableVersion,
+  DeliverableReview,
   Comment,
   Notification,
   Activity,
@@ -306,7 +309,8 @@ async function runSeed() {
       title: "Design authentication flow",
       description: "Document and spec the login/register flows",
       assignedTo: margaret,
-      status: "IN PROGRESS",
+      // Mirrors the deliverable seeded below: v2 is with the reviewer.
+      status: "SUBMITTED",
       priority: "High",
       dueDate: new Date("2026-04-01"),
       position: 0,
@@ -323,7 +327,9 @@ async function runSeed() {
       title: "Implement Socket.IO auth",
       description: "Wire JWT auth into the socket handshake",
       assignedTo: linus,
-      status: "IN PROGRESS",
+      // Canonical vocabulary — this task hosts the seeded DRAFT deliverable, so
+      // its status must equal TASK_STATUS_FOR_DELIVERABLE.DRAFT exactly.
+      status: "IN_PROGRESS",
       priority: "Urgent",
       dueDate: new Date("2026-04-15"),
       position: 1,
@@ -574,6 +580,11 @@ async function runSeed() {
     loginTask,
   ] = tasks.map((t) => t._id);
 
+  // Tasks that host a deliverable are looked up by title so adding a task
+  // elsewhere in the array cannot silently repoint a seeded deliverable.
+  const typeScaleTask = tasks.find((t) => t.title === "Type scale proposal")._id;
+  const loginUiTask = tasks.find((t) => t.title === "Ship login form UI")._id;
+
   // Subtask weights are embedded per the existing board model and each task
   // allocates exactly 100 points across its subtasks. Phase 11 derives progress
   // from these records (nothing is stored), so the seeded data demonstrates
@@ -591,54 +602,237 @@ async function runSeed() {
   // docs/database.md for the full rule.
 
   // ----------------------------------------------------------- DELIVERABLES
-  const deliverable = await Deliverable.create({
+  //
+  // Phase 12 stores deliverables as an aggregate: one Deliverable per task,
+  // an append-only list of versions, and a review row per decision. Files are
+  // written through the storage service so a seeded demo can actually download
+  // them (the keys are generated, never hand-written).
+  //
+  // The seeded stories cover every interesting state:
+  //
+  //   "Design authentication flow"  v1 changes requested → v2 submitted
+  //                                 (task SUBMITTED, submitter margaret)
+  //   "Implement Socket.IO auth"    v1 draft, never submitted (task IN PROGRESS)
+  //   "Ship login form UI"          v1 changes requested → v2 approved
+  //                                 (task APPROVED, approvedVersion 2)
+  //   "Type scale proposal"         v1 under review, decision pending
+  //                                 (task UNDER_REVIEW)
+  //
+  // Task status always mirrors the deliverable's, exactly as the service keeps
+  // them: DRAFT → IN PROGRESS, SUBMITTED → SUBMITTED, UNDER_REVIEW → UNDER
+  // REVIEW, CHANGES_REQUESTED → CHANGES REQUESTED, APPROVED → APPROVED.
+
+  const fileFor = (deliverable, versionNumber, { name, mimeType, body }) =>
+    storage.saveUpload(
+      {
+        buffer: Buffer.from(body),
+        originalname: name,
+        mimetype: mimeType,
+      },
+      {
+        workspaceId: workspace._id,
+        projectId: deliverable.projectId,
+        deliverableId: deliverable._id,
+        versionNumber,
+      }
+    );
+
+  const versionDoc = (deliverable, versionNumber, upload, { status, description, submittedBy, submittedAt, reviewedAt }) => ({
+    deliverableId: deliverable._id,
+    versionNumber,
+    status,
+    description,
+    fileName: upload.fileName,
+    storageKey: upload.storageKey,
+    fileUrl: upload.fileUrl,
+    fileSize: upload.fileSize,
+    mimeType: upload.mimeType,
+    checksum: upload.checksum,
+    submittedBy,
+    submittedAt,
+    reviewedAt,
+  });
+
+  // --- Story 1: rework after requested changes ---------------------------
+  const authDeliverable = await Deliverable.create({
     taskId: authTask,
-    submittedBy: margaret,
-    title: "Auth spec (v1)",
-    description: "First draft of the authentication specification",
-    fileUrl: "https://example.com/auth-spec-v1.pdf",
-    version: 1,
+    workspaceId: workspace._id,
+    projectId: platformProject,
+    createdBy: margaret,
+    title: "Auth flow specification",
     status: "SUBMITTED",
-    submittedAt: new Date("2026-02-10"),
+    currentVersion: 2,
   });
 
-  const approvedDeliverable = await Deliverable.create({
+  const authV1 = versionDoc(
+    authDeliverable,
+    1,
+    await fileFor(authDeliverable, 1, {
+      name: "auth-spec-v1.pdf",
+      mimeType: "application/pdf",
+      body: "%PDF-1.4\n% Auth flow specification, first draft\n",
+    }),
+    {
+      status: "CHANGES_REQUESTED",
+      description: "First draft of the authentication specification",
+      submittedBy: margaret,
+      submittedAt: new Date("2026-02-10"),
+      reviewedAt: new Date("2026-02-12"),
+    }
+  );
+  const authV2 = versionDoc(
+    authDeliverable,
+    2,
+    await fileFor(authDeliverable, 2, {
+      name: "auth-spec-v2.pdf",
+      mimeType: "application/pdf",
+      body: "%PDF-1.4\n% Auth flow specification, token rotation added\n",
+    }),
+    {
+      status: "SUBMITTED",
+      description: "Adds the refresh-token rotation flow requested in review",
+      submittedBy: margaret,
+      submittedAt: new Date("2026-02-14"),
+      reviewedAt: null,
+    }
+  );
+  const [authVersion1, authVersion2] = await DeliverableVersion.insertMany([authV1, authV2]);
+
+  // --- Story 2: a draft that was never submitted -------------------------
+  const routerDeliverable = await Deliverable.create({
     taskId: socketTask,
-    submittedBy: linus,
-    title: "Socket.IO auth implementation",
-    description: "Working JWT handshake middleware for socket.io",
-    fileUrl: "https://example.com/socket-auth-implementation.zip",
-    version: 1,
+    workspaceId: workspace._id,
+    projectId: platformProject,
+    createdBy: linus,
+    title: "Module router refactor notes",
+    status: "DRAFT",
+    currentVersion: 1,
+  });
+  const [routerVersion1] = await DeliverableVersion.insertMany([
+    versionDoc(
+      routerDeliverable,
+      1,
+      await fileFor(routerDeliverable, 1, {
+        name: "router-refactor-notes.md",
+        mimeType: "text/markdown",
+        body: "# Module router refactor\n\nSplit plan, still in progress.\n",
+      }),
+      {
+        status: "DRAFT",
+        description: "Working notes — not ready to submit yet",
+        submittedBy: null,
+        submittedAt: null,
+        reviewedAt: null,
+      }
+    ),
+  ]);
+
+  // --- Story 3: changes requested, then approved -------------------------
+  const buttonDeliverable = await Deliverable.create({
+    taskId: loginUiTask,
+    workspaceId: workspace._id,
+    projectId: platformProject,
+    createdBy: margaret,
+    title: "Login form UI",
     status: "APPROVED",
-    submittedAt: new Date("2026-02-14"),
+    currentVersion: 2,
+    approvedVersion: 2,
   });
 
-  await Deliverable.create({
-    taskId: buttonTask,
-    submittedBy: grace,
-    title: "Button token refresh (v1)",
-    description: "Updated color and spacing tokens for buttons",
-    fileUrl: "https://example.com/button-tokens-v1.zip",
-    version: 1,
-    status: "APPROVED",
-    submittedAt: new Date("2026-02-16"),
+  const buttonV1 = versionDoc(
+    buttonDeliverable,
+    1,
+    await fileFor(buttonDeliverable, 1, {
+      name: "login-form-v1.zip",
+      mimeType: "application/zip",
+      body: "PK\u0003\u0004button tokens, first pass\n",
+    }),
+    {
+      status: "CHANGES_REQUESTED",
+      description: "Rebuilt login form with the refreshed design tokens",
+      submittedBy: margaret,
+      submittedAt: new Date("2026-02-16"),
+      reviewedAt: new Date("2026-02-17"),
+    }
+  );
+  const buttonV2 = versionDoc(
+    buttonDeliverable,
+    2,
+    await fileFor(buttonDeliverable, 2, {
+      name: "login-form-v2.zip",
+      mimeType: "application/zip",
+      body: "PK\u0003\u0004button tokens, contrast fixed\n",
+    }),
+    {
+      status: "APPROVED",
+      description: "Contrast ratios corrected for every interactive state",
+      submittedBy: margaret,
+      submittedAt: new Date("2026-02-18"),
+      reviewedAt: new Date("2026-02-20"),
+    }
+  );
+  const [buttonVersion1, buttonVersion2] = await DeliverableVersion.insertMany([buttonV1, buttonV2]);
+
+  // --- Story 4: waiting on a decision ------------------------------------
+  const typeScaleDeliverable = await Deliverable.create({
+    taskId: typeScaleTask,
+    workspaceId: workspace._id,
+    projectId: benchmarkProject,
+    createdBy: grace,
+    title: "Type scale proposal",
+    status: "UNDER_REVIEW",
+    currentVersion: 1,
   });
+  const [typeScaleVersion1] = await DeliverableVersion.insertMany([
+    versionDoc(
+      typeScaleDeliverable,
+      1,
+      await fileFor(typeScaleDeliverable, 1, {
+        name: "type-scale.pdf",
+        mimeType: "application/pdf",
+        body: "%PDF-1.4\n% Spacing-aware type scale proposal\n",
+      }),
+      {
+        status: "UNDER_REVIEW",
+        description: "Modular scale tuned for the 4px spacing grid",
+        submittedBy: grace,
+        submittedAt: new Date("2026-02-21"),
+        reviewedAt: null,
+      }
+    ),
+  ]);
 
   // ----------------------------------------------------------------- REVIEWS
-  await Review.insertMany([
+  //
+  // Reviews are append-only and always name the version they judged — that is
+  // what makes the history auditable after a v2 arrives.
+  await DeliverableReview.insertMany([
     {
-      deliverableId: deliverable._id,
+      deliverableId: authDeliverable._id,
+      deliverableVersionId: authVersion1._id,
+      versionNumber: 1,
       reviewerId: alan,
       decision: "CHANGES_REQUESTED",
-      feedback: "Clarify the token refresh flow before v2.",
+      feedback: "Clarify the token refresh flow before v2 — the client needs a rotation diagram.",
       reviewedAt: new Date("2026-02-12"),
     },
     {
-      deliverableId: approvedDeliverable._id,
+      deliverableId: buttonDeliverable._id,
+      deliverableVersionId: buttonVersion1._id,
+      versionNumber: 1,
+      reviewerId: alan,
+      decision: "CHANGES_REQUESTED",
+      feedback: "Disabled-state contrast is 2.8:1. Bring it to at least 4.5:1.",
+      reviewedAt: new Date("2026-02-17"),
+    },
+    {
+      deliverableId: buttonDeliverable._id,
+      deliverableVersionId: buttonVersion2._id,
+      versionNumber: 2,
       reviewerId: alan,
       decision: "APPROVED",
-      feedback: "Solid implementation. Merged.",
-      reviewedAt: new Date("2026-02-15"),
+      feedback: "Contrast fixed across every state. Approved — nice turnaround.",
+      reviewedAt: new Date("2026-02-20"),
     },
   ]);
 
@@ -653,7 +847,7 @@ async function runSeed() {
   await Notification.insertMany([
     { userId: margaret, actorId: alan, workspaceId: workspace._id, type: "TASK_ASSIGNED", title: "You were assigned a task", body: "Design authentication flow", link: `/workspaces/${workspace._id}`, entityType: "task", entityId: authTask },
     { userId: linus, actorId: alan, workspaceId: workspace._id, type: "TASK_ASSIGNED", title: "You were assigned a task", body: "Implement Socket.IO auth", link: `/workspaces/${workspace._id}`, entityType: "task", entityId: socketTask },
-    { userId: margaret, actorId: alan, workspaceId: workspace._id, type: "DELIVERABLE_REVIEWED", title: "Your deliverable was reviewed", body: "Clarify the token refresh flow", link: `/workspaces/${workspace._id}`, entityType: "deliverable", entityId: deliverable._id, read: false },
+    { userId: margaret, actorId: alan, workspaceId: workspace._id, type: "DELIVERABLE_REVIEWED", title: "Your deliverable was reviewed", body: "Clarify the token refresh flow", link: `/workspaces/${workspace._id}`, entityType: "deliverable", entityId: authDeliverable._id, read: false },
     { userId: ada, actorId: alan, workspaceId: workspace._id, type: "TASK_ASSIGNED", title: "You were assigned a task", body: "Write onboarding migration guide", link: `/workspaces/${workspace._id}`, entityType: "task", entityId: onbTask, read: false },
     { userId: margaret, actorId: alan, workspaceId: workspace._id, type: "TASK_ASSIGNED", title: "You were assigned a task", body: "Ship login form UI", link: `/workspaces/${workspace._id}`, entityType: "task", entityId: loginTask, read: false },
     { userId: margaret, actorId: alan, workspaceId: workspace._id, type: "TASK_STATUS_CHANGED", title: "Task status changed", body: "Draft deprecation policy is under review", link: `/workspaces/${workspace._id}`, entityType: "task", entityId: deprecTask, read: false },
@@ -665,7 +859,15 @@ async function runSeed() {
     { workspaceId: workspace._id, projectId: platformProject, userId: alan, action: "TASK_CREATED", targetType: "task", targetId: authTask, metadata: { taskTitle: "Design authentication flow" } },
     { workspaceId: workspace._id, projectId: platformProject, userId: alan, action: "TASK_STARTED", targetType: "task", targetId: socketTask, metadata: { taskTitle: "Implement Socket.IO auth" } },
     { workspaceId: workspace._id, projectId: benchmarkProject, userId: ada, action: "PROJECT_CREATED", targetType: "project", targetId: benchmarkProject, metadata: { projectName: "LLM Benchmarking Study" } },
-    { workspaceId: workspace._id, projectId: platformProject, userId: margaret, action: "DELIVERABLE_SUBMITTED", targetType: "deliverable", targetId: deliverable._id, metadata: { title: "Auth spec (v1)" } },
+    // Deliverable activity hangs off the deliverable, not the version, so one
+    // timeline tells the whole story of a submission and its revisions.
+    { workspaceId: workspace._id, projectId: platformProject, userId: margaret, action: "DELIVERABLE_CREATED", targetType: "deliverable", targetId: authDeliverable._id, metadata: { deliverableId: String(authDeliverable._id), taskId: String(authTask), versionNumber: 1, taskTitle: "Design authentication flow" } },
+    { workspaceId: workspace._id, projectId: platformProject, userId: margaret, action: "DELIVERABLE_SUBMITTED", targetType: "deliverable", targetId: authDeliverable._id, metadata: { deliverableId: String(authDeliverable._id), taskId: String(authTask), versionNumber: 1, taskTitle: "Design authentication flow" } },
+    { workspaceId: workspace._id, projectId: platformProject, userId: alan, action: "DELIVERABLE_CHANGES_REQUESTED", targetType: "deliverable", targetId: authDeliverable._id, metadata: { deliverableId: String(authDeliverable._id), taskId: String(authTask), versionNumber: 1, taskTitle: "Design authentication flow" } },
+    { workspaceId: workspace._id, projectId: platformProject, userId: margaret, action: "DELIVERABLE_VERSION_CREATED", targetType: "deliverable", targetId: authDeliverable._id, metadata: { deliverableId: String(authDeliverable._id), taskId: String(authTask), versionNumber: 2, taskTitle: "Design authentication flow" } },
+    { workspaceId: workspace._id, projectId: platformProject, userId: margaret, action: "DELIVERABLE_SUBMITTED", targetType: "deliverable", targetId: authDeliverable._id, metadata: { deliverableId: String(authDeliverable._id), taskId: String(authTask), versionNumber: 2, taskTitle: "Design authentication flow" } },
+    { workspaceId: workspace._id, projectId: platformProject, userId: alan, action: "DELIVERABLE_APPROVED", targetType: "deliverable", targetId: buttonDeliverable._id, metadata: { deliverableId: String(buttonDeliverable._id), taskId: String(loginUiTask), versionNumber: 2, taskTitle: "Ship login form UI" } },
+    { workspaceId: workspace._id, projectId: benchmarkProject, userId: grace, action: "DELIVERABLE_SUBMITTED", targetType: "deliverable", targetId: typeScaleDeliverable._id, metadata: { deliverableId: String(typeScaleDeliverable._id), taskId: String(typeScaleTask), versionNumber: 1, taskTitle: "Type scale proposal" } },
     { workspaceId: workspace._id, projectId: platformProject, userId: linus, action: "TASK_STARTED", targetType: "task", targetId: routerTask, metadata: { taskTitle: "Refactor module router" } },
     { workspaceId: workspace._id, projectId: platformProject, userId: margaret, action: "TASK_COMPLETED", targetType: "task", targetId: loginTask, metadata: { taskTitle: "Ship login form UI" } },
     { workspaceId: workspace._id, projectId: platformProject, userId: margaret, action: "TASK_UPDATED", targetType: "task", targetId: deprecTask, metadata: { taskTitle: "Draft deprecation policy" } },
