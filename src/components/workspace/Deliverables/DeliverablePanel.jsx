@@ -10,6 +10,7 @@ import {
   DELIVERABLE_ACCEPT,
   DELIVERABLE_ENDPOINTS,
   REVIEWER_ROLES,
+  canSubmitDeliverable,
   deliverableStatusMeta,
   formatDateTime,
   formatFileSize,
@@ -215,7 +216,7 @@ function UploadForm({ path, showTitle, submitImmediately, submitLabel, onDone, o
   );
 }
 
-export default function DeliverablePanel({ taskId, role, isAssignee, onChanged }) {
+export default function DeliverablePanel({ taskId, taskStatus, role, isAssignee, onChanged }) {
   const { data, loading, refetch } = useResource(DELIVERABLE_ENDPOINTS.task(taskId), {
     enabled: Boolean(taskId),
   });
@@ -231,6 +232,9 @@ export default function DeliverablePanel({ taskId, role, isAssignee, onChanged }
   const current = versions.find((v) => v.isCurrent) || versions[versions.length - 1] || null;
   const isReviewer = REVIEWER_ROLES.includes(role);
   const canContribute = CONTRIBUTOR_ROLES.includes(role) && (isReviewer || isAssignee);
+  // The server only lets a SUBMITTED deliverable exist while the task is being
+  // worked on, so elsewhere the upload lands as a draft the user submits later.
+  const autoSubmit = canSubmitDeliverable(taskStatus);
 
   const act = async (path, { method = "PATCH", body, success }) => {
     setError("");
@@ -300,8 +304,13 @@ export default function DeliverablePanel({ taskId, role, isAssignee, onChanged }
           {deliverable && canContribute && current && current.status === "DRAFT" && (
             <button
               type="button"
-              disabled={busy}
+              disabled={busy || !autoSubmit}
               onClick={submitForm}
+              title={
+                autoSubmit
+                  ? "Send this version to the reviewers"
+                  : "The task must be in progress before work can be submitted"
+              }
               className="flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-[12.5px] font-semibold text-zinc-950 transition-colors hover:bg-zinc-200 disabled:opacity-60"
             >
               <CheckIcon size={14} /> Submit v{current.versionNumber}
@@ -467,9 +476,15 @@ export default function DeliverablePanel({ taskId, role, isAssignee, onChanged }
             <UploadForm
               path={DELIVERABLE_ENDPOINTS.create(taskId)}
               showTitle
-              submitImmediately
-              submitLabel="Upload and submit"
-              onDone={() => afterUpload("Deliverable uploaded and submitted for review.")}
+              submitImmediately={autoSubmit}
+              submitLabel={autoSubmit ? "Upload and submit" : "Upload draft"}
+              onDone={() =>
+                afterUpload(
+                  autoSubmit
+                    ? "Deliverable uploaded and submitted for review."
+                    : "Deliverable uploaded as a draft — submit it when the task is in progress."
+                )
+              }
               onCancel={() => setUploading(false)}
             />
           )}

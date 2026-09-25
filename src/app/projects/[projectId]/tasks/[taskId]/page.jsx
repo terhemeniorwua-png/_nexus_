@@ -627,6 +627,7 @@ export default function TaskDetailPage() {
 
             <DeliverablePanel
               taskId={task.id}
+              taskStatus={task.status}
               role={role}
               isAssignee={isAssignee}
               onChanged={refetch}

@@ -83,10 +83,12 @@ The single source of truth lives in `permissions/permissions.js`. Controllers an
 | `review_task`, `approve_task`, `request_task_changes` | ✅ | ✅ | ✅ | – | – | – |
 | `update_task` | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | – |
 | `upload_deliverable` | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | – |
+| `create_deliverable`, `submit_deliverable`, `create_deliverable_version` | ✅ | ✅ | ✅ | ⚠️³ | ⚠️³ | – |
 | `create_document`, `update_document` | ✅ | ✅ | ✅ | ✅ | – | – |
 | `create_task` | ✅ | ✅ | ✅ | – | – | – |
 | `delete_task`, `assign_task` | ✅ | ✅ | ✅ | – | – | – |
 | `review_deliverable`, `approve_deliverable`, `request_changes` | ✅ | ✅ | ✅ | – | – | – |
+| `request_deliverable_changes` | ✅ | ✅ | ✅ | – | – | – |
 | `invite_project_member`, `remove_project_member` | ✅ | ✅ | ✅ | – | – | – |
 | `create/update/delete_project_resource` | ✅ | ✅ | ✅ | – | – | – |
 | `delete_document` | ✅ | ✅ | ✅ | – | – | – |
@@ -97,6 +99,7 @@ The single source of truth lives in `permissions/permissions.js`. Controllers an
 
 ⚠️ = restricted further by ownership (below).
 ⚠️² = restricted to the task **assignee** (worker steps, see §2.6).
+⚠️³ = restricted to tasks **assigned to the user**; the deliverable service itself re-checks ownership (and the creator) before writing, so this cannot be bypassed by calling the version routes directly — see [deliverables.md §3](deliverables.md#3-api).
 
 ### 2.3 Task ownership rule
 

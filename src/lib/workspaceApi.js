@@ -94,8 +94,7 @@ export const REVIEWER_ROLES = ["WORKSPACE_OWNER", "ADMIN", "PROJECT_MANAGER"];
 
 export const CONTRIBUTOR_ROLES = [...REVIEWER_ROLES, "MEMBER", "COLLABORATOR"];
 
-export const DELIVERABLE_ENDPOINTS = {
-  task: (taskId) => `/tasks/${taskId}/deliverable`,
+export const DELIVERABLE_ENDPOINTS = {  task: (taskId) => `/tasks/${taskId}/deliverable`,
   create: (taskId) => `/tasks/${taskId}/deliverables`,
   deliverable: (deliverableId) => `/deliverables/${deliverableId}`,
   versions: (deliverableId) => `/deliverables/${deliverableId}/versions`,
@@ -116,6 +115,27 @@ export const DELIVERABLE_ENDPOINTS = {
 /** The server returns a path already rooted at /api; apiRequest wants the rest. */
 export function toApiPath(path) {
   return path.startsWith("/api/") ? path.slice(4) : path;
+}
+
+// Legacy board statuses still present on pre-workflow tasks; the server maps
+// them through the same table (services/task.service.js).
+const LEGACY_TASK_STATUS = {
+  "TO DO": "ASSIGNED",
+  "IN PROGRESS": "IN_PROGRESS",
+  REVIEW: "SUBMITTED",
+  DONE: "APPROVED",
+  BLOCKED: "ASSIGNED",
+};
+
+export function workflowStatus(status) {
+  return LEGACY_TASK_STATUS[status] || status;
+}
+
+// Submitting a deliverable moves the task to SUBMITTED, and the server only
+// allows that while the task is being worked on. Outside IN_PROGRESS the UI
+// uploads a draft and leaves the submit step to the user.
+export function canSubmitDeliverable(taskStatus) {
+  return workflowStatus(taskStatus) === "IN_PROGRESS";
 }
 
 export function taskStatusMeta(status) {
