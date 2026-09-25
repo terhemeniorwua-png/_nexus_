@@ -60,7 +60,7 @@ Subtasks are **embedded documents** on the task (`task.subtasks`). Each has `tit
 
 - `progress` is **derived, not stored**: see [§3.1 Progress](#31-progress) below.
 - Subtask routes resolve the owning task from `:subtaskId` then apply the **same project-access rules** as the task itself (`subtaskTaskAccess`). Mutations need `create_subtask` / `update_subtask` / `delete_subtask` **plus** task ownership (`requireTaskOwnership`).
-- Deleting a task cascades its deliverables, reviews, and comments. Subtasks go with the task (embedded) automatically.
+- Deleting a task cascades its deliverables, versions, reviews, and comments (Phase 12 — see [deliverables.md](deliverables.md)). Subtasks go with the task (embedded) automatically.
 
 ### 3.1 Progress
 
@@ -117,6 +117,7 @@ Global, project-scoped routes are mounted in `app.js` (`task.route.js`); the lis
 | `GET /api/tasks/:taskId` | `taskAccess` + `view_task`. Returns `{ task }`. |
 | `PATCH /api/tasks/:taskId` | `update_task` + ownership. Updates title/description/priority/assignee/dueDate/tags; **ignores `status`**. |
 | `DELETE /api/tasks/:taskId` | `delete_task` + ownership. Cascades deliverables/reviews/comments. |
+| `GET /api/tasks/:taskId/deliverable` | `view_deliverable`. The task's deliverable aggregate + version history (`docs/deliverables.md`). |
 | `PATCH /api/tasks/:taskId/status` | `update_task` + transition rules. Body `{ status }`. Returns the moved task. |
 | `GET /api/tasks/:taskId/subtasks` | `view_task`. Returns `{ subtasks, progress, weights }`. |
 | `POST /api/tasks/:taskId/subtasks` | `create_subtask` + ownership. Accepts `weight` (`0–100`); rejected if the task's combined weights would exceed `100` or the task is already `APPROVED`. |
@@ -155,7 +156,7 @@ Full matrix in `docs/authorization.md` §2.2/§2.6. Summarized:
 ## 6. Frontend
 
 - `app/projects/[projectId]/tasks` — task list for a project. Search, priority and assignee filters, status tabs over the full workflow + legacy states (labels/counts from `TASK_STATUS_META`, zero-count tabs hidden), rows showing status and priority badges, due-date/overdue chip, subtask progress and assignee avatar. **New task** modal (`TaskFormModal`) gated to managers/owners/admins (`project.role` from `/api/projects/:id`).
-- `app/projects/[projectId]/tasks/[taskId]` — task detail. Description + tags, meta cards (due/priority/progress/assignee), **Move task** buttons rendered from `TRANSITIONS` (worker steps show a "waiting on assignee" hint when the viewer isn't the assignee; an **Approve** action is shown but the server's subtask precondition is surfaced as an error if work is still open), subtasks list with the shared `ProgressBar`, per-subtask weight chips, a weight breakdown, and the `SubtaskComposer` weight field with live "allocated / remaining" feedback. Add/toggle/delete, Edit + Delete (confirm modal). Backend errors surface instead of hiding buttons — the server stays source of truth.
+- `app/projects/[projectId]/tasks/[taskId]` — task detail, which also hosts the **DeliverablePanel** (Phase 12: upload, version history, review decisions). Description + tags, meta cards (due/priority/progress/assignee), **Move task** buttons rendered from `TRANSITIONS` (worker steps show a "waiting on assignee" hint when the viewer isn't the assignee; an **Approve** action is shown but the server's subtask precondition is surfaced as an error if work is still open), subtasks list with the shared `ProgressBar`, per-subtask weight chips, a weight breakdown, and the `SubtaskComposer` weight field with live "allocated / remaining" feedback. Add/toggle/delete, Edit + Delete (confirm modal). Backend errors surface instead of hiding buttons — the server stays source of truth.
 - `app/tasks` (My Tasks) — status tabs across the workflow + legacy labels, counts, `isOverdue`/`isDueSoon` treat `APPROVED` (and `DONE`) as terminal; each row links into the project task detail.
 - `components/workspace/TaskFormModal.jsx` — shared create/edit modal (title, description, priority, assignee, due date, tags, quick subtasks on create; read-only status on edit).
 - `components/workspace/Kanban/TaskModal.jsx` — board-flavored create/edit: create status restricted to `ASSIGNED`/`IN_PROGRESS` (column maps through `columnToStatus`), read-only status pill on edit, uppercase priorities.
@@ -169,7 +170,7 @@ Full matrix in `docs/authorization.md` §2.2/§2.6. Summarized:
 - `npm run db:seed` seeds **17 tasks**: 4 legacy-status board tasks plus 13 workflow tasks covering **every state** (`ASSIGNED` → `APPROVED` and `CHANGES_REQUESTED`) across the platform, benchmark, and design-system projects, with embedded subtasks. Every seeded task allocates exactly `100` points, so the demo shows `70%` (`Design authentication flow` — 20 + 50 of 100), `80%` (`Implement Socket.IO auth`), `100%` (`Ship login form UI`) and `0%` tasks. Also: `TASK_STATUS_CHANGED` notifications and `TASK_STARTED` / `TASK_COMPLETED` / `TASK_UPDATED` activity entries.
 - `backend/test/tasks.test.js` (`nexus_tasks_test`): task CRUD with member-assignment enforcement, the dedicated status endpoint (valid/invalid/one-hop-only transitions, assignee-only worker steps, reviewer-only review steps), subtask CRUD + completion, the subtask serialized-id regression, and the Phase-11 invariant that an approved task refuses new open work. The subtask suite runs against a still-`ASSIGNED` task precisely because the workflow test in the same file approves the other one.
 - `backend/test/progress.test.js` (**35 tests**, `nexus_progress_test`): the formula itself (unit), the no-normalization guarantee, the weight ceiling, the full HTTP surface (task, subtask, board, project, dashboard), `APPROVED` gating and drift, legacy-count fallback, client manipulation attempts, and authorization (401/403, no cross-project leakage). `makeProject()` gives a deterministic single-`IN_PROGRESS` task so the averaging assertions are exact.
-- The authz suite covers the same workflow from the permission side. **Full backend suite: 152/152 pass** (`cd backend && npm test`); `next build` + ESLint green on both sides.
+- The authz suite covers the same workflow from the permission side, and the **phase-12 deliverables suite** (`backend/test/deliverables.test.js`, 21 tests) covers the file-backed submission lifecycle on top of it. **Full backend suite: 173/173 pass** (`cd backend && npm test`); `next build` + ESLint green on both sides.
 
 ---
 

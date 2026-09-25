@@ -212,28 +212,61 @@ The single source of truth is `backend/src/services/progress.service.js`; see [d
 
 ### deliverables
 
-| Field          | Type     | Notes                                |
-|----------------|----------|--------------------------------------|
-| `taskId`       | ObjectId | FK → tasks, required, indexed        |
-| `submittedBy`  | ObjectId | FK → users, required, indexed        |
-| `title`        | String   | Required, ≤200                       |
-| `description`  | String   | Default `""`, ≤5000                  |
-| `fileUrl`      | String   | Default `""`, ≤1000                  |
-| `version`      | Number   | Default `1`, min `1` (v1, v2, v3…)   |
-| `status`       | String   | Enum `DRAFT / SUBMITTED / UNDER_REVIEW / CHANGES_REQUESTED / APPROVED`, default `DRAFT` |
-| `submittedAt`  | Date     | Nullable                             |
-| —              | —        | Index `(taskId, version)`            |
+The **aggregate root** of Phase 12: one deliverable per task, holding the current state of the submission. The per-file history lives in `deliverableversions`, the decisions in `deliverablereviews` — both append-only.
 
-### reviews
+| Field            | Type     | Notes                                                                 |
+|------------------|----------|-----------------------------------------------------------------------|
+| `taskId`         | ObjectId | FK → tasks, required, **unique** (one deliverable per task)           |
+| `workspaceId`    | ObjectId | FK → workspaces, required, indexed (denormalized from the task chain)  |
+| `projectId`      | ObjectId | FK → projects, required, indexed (denormalized)                      |
+| `createdBy`      | ObjectId | FK → users, required, indexed                                        |
+| `title`          | String   | Required, ≤200                                                       |
+| `status`         | String   | Enum `DRAFT / SUBMITTED / UNDER_REVIEW / CHANGES_REQUESTED / APPROVED`, default `DRAFT` |
+| `currentVersion` | Number   | Default `1`, min `1` — server-assigned, never taken from the client  |
+| `approvedVersion`| Number   | Nullable — last version that reached `APPROVED`; kept separate from `currentVersion` so "latest" and "approved" can never be confused |
+| —                | —        | Index `(projectId, status)`, `(createdBy, createdAt desc)`            |
 
-| Field           | Type     | Notes                                    |
-|-----------------|----------|------------------------------------------|
-| `deliverableId` | ObjectId | FK → deliverables, required, indexed     |
-| `reviewerId`    | ObjectId | FK → users, required, indexed            |
-| `decision`      | String   | Enum `APPROVED / CHANGES_REQUESTED`, required |
-| `feedback`      | String   | Default `""`, ≤5000                      |
-| `reviewedAt`    | Date     | Default now                              |
-| —               | —        | Index `(deliverableId, reviewedAt)`      |
+### deliverableversions
+
+One row per uploaded file. Immutable once it leaves `DRAFT`: requesting changes never edits v1, it records a review against it and adds the next version.
+
+| Field          | Type     | Notes                                                                 |
+|----------------|----------|-----------------------------------------------------------------------|
+| `deliverableId`| ObjectId | FK → deliverables, required, indexed                                  |
+| `versionNumber`| Number   | Required, min `1`; sequential and server-assigned                     |
+| `status`       | String   | Same enum as the deliverable, default `DRAFT`                         |
+| `description`  | String   | Default `""`, ≤5000                                                   |
+| `fileName`     | String   | Required, ≤255 (sanitized)                                            |
+| `storageKey`   | String   | Required, ≤512 — server-side path, **never serialized to a client**   |
+| `fileUrl`      | String   | Required — the authorized download route, not a filesystem path       |
+| `fileSize`     | Number   | Required, min `1`                                                    |
+| `mimeType`     | String   | Required, ≤150                                                       |
+| `checksum`     | String   | Default `""`, ≤128                                                   |
+| `submittedBy`  | ObjectId | FK → users, nullable                                                 |
+| `submittedAt`  | Date     | Nullable                                                             |
+| `reviewedAt`   | Date     | Nullable                                                             |
+| —              | —        | **Unique** `(deliverableId, versionNumber)`, index `(deliverableId, status)` |
+
+The unique index is the concurrency guard: two simultaneous "create the next version" requests produce one v2 and one duplicate-key **409**, never two v2s.
+
+### deliverablereviews
+
+Append-only decisions, so a deliverable accumulates an auditable v1 → v2 → v3 trail instead of one feedback field that gets overwritten.
+
+| Field                | Type     | Notes                                                            |
+|----------------------|----------|------------------------------------------------------------------|
+| `deliverableId`      | ObjectId | FK → deliverables, required, indexed                            |
+| `deliverableVersionId`| ObjectId | FK → deliverableversions, required, indexed                     |
+| `versionNumber`      | Number   | Required, min `1` — denormalized for display                   |
+| `reviewerId`         | ObjectId | FK → users, required, indexed                                   |
+| `decision`           | String   | Enum `APPROVED / CHANGES_REQUESTED`, required                   |
+| `feedback`           | String   | Default `""`, ≤5000; ≥10 characters when requesting changes     |
+| `reviewedAt`         | Date     | Default now                                                     |
+| —                    | —        | Indexes `(deliverableId, reviewedAt desc)`, `(deliverableVersionId, reviewedAt desc)`, **unique** `(deliverableVersionId, reviewerId)` |
+
+The unique index makes "one decision per reviewer per version" hold even under a race: a version cannot be approved twice, or both approved and rejected.
+
+> Superseded by Phase 12: the earlier single `reviews` collection (deliverable + reviewer + decision, no version) is gone — `deliverablereviews` replaces it. See [docs/deliverables.md](deliverables.md).
 
 ### projectresources
 
@@ -387,7 +420,9 @@ Both casings accepted for compatibility with the existing board (`Low`, `Medium`
 
 ### Activity actions
 
-`TASK_CREATED`, `TASK_STARTED`, `TASK_MOVED`, `TASK_UPDATED`, `TASK_COMPLETED`, `TASK_DELETED`, `SUBTASK_COMPLETED`, `DELIVERABLE_SUBMITTED`, `DELIVERABLE_APPROVED`, `PROJECT_CREATED`, `PROJECT_UPDATED`, `MEMBER_INVITED`, `DOCUMENT_CREATED`, `DOCUMENT_UPDATED`, `RESOURCE_ADDED`, `MEMBERSHIP_UPDATED`, `COMMENT_ADDED`, `CHANNEL_JOINED`, `TEAM_CREATED`, `TEAM_UPDATED`, `TEAM_DELETED`, `TEAM_MEMBER_ADDED`, `TEAM_MEMBER_REMOVED`
+`TASK_CREATED`, `TASK_STARTED`, `TASK_MOVED`, `TASK_UPDATED`, `TASK_COMPLETED`, `TASK_DELETED`, `SUBTASK_COMPLETED`, `DELIVERABLE_CREATED`, `DELIVERABLE_SUBMITTED`, `DELIVERABLE_REVIEW_STARTED`, `DELIVERABLE_VERSION_CREATED`, `DELIVERABLE_APPROVED`, `DELIVERABLE_CHANGES_REQUESTED`, `PROJECT_CREATED`, `PROJECT_UPDATED`, `MEMBER_INVITED`, `DOCUMENT_CREATED`, `DOCUMENT_UPDATED`, `RESOURCE_ADDED`, `MEMBERSHIP_UPDATED`, `COMMENT_ADDED`, `CHANNEL_JOINED`, `TEAM_CREATED`, `TEAM_UPDATED`, `TEAM_DELETED`, `TEAM_MEMBER_ADDED`, `TEAM_MEMBER_REMOVED`
+
+Deliverable activity rows use `targetType: "deliverable"` with `targetId` pointing at the **deliverable** (never the version) and the version number in `metadata`, so one timeline tells the whole story of a submission and its revisions.
 
 Activity tracking covers meaningful in-app actions only — **never** keyboard/mouse/screen/browser activity.
 
@@ -444,8 +479,9 @@ npm run db:seed
 - 4 teams, 10 team memberships
 - 7 projects, 13 project memberships
 - 5 project resources, 12 board columns, **17 tasks** (13 Phase-10 workflow tasks across *every* state — `ASSIGNED`, `IN_PROGRESS`, `SUBMITTED`, `UNDER_REVIEW`, `CHANGES_REQUESTED`, `APPROVED` — plus 4 legacy-status board tasks, all with weighted subtasks, each seeded task allocating exactly `100` points so the demo exercises every branch of the progress formula)
-- 1 deliverable, 1 review, 3 comments
-- 7 notifications (incl. `TASK_ASSIGNED` + `TASK_STATUS_CHANGED`), 7 activity logs (incl. `TASK_STARTED` / `TASK_COMPLETED` / `TASK_UPDATED`)
+- 4 deliverables, 6 versions, 3 reviews — covering draft, submitted, under review, changes requested and approved, with real placeholder files on disk
+- 3 comments
+- 7 notifications (incl. `TASK_ASSIGNED` + `TASK_STATUS_CHANGED`), 13 activity logs (incl. `TASK_STARTED` / `TASK_COMPLETED` / `TASK_UPDATED` and the Phase-12 `DELIVERABLE_*` rows)
 - 1 conversation, 2 members, 3 messages
 - 3 profile views, 3 project views
 
@@ -473,6 +509,8 @@ MONGO_URI=mongodb://127.0.0.1:27017/nexus
 ```
 
 The database scripts only need `MONGO_URI`. `JWT_SECRET`, `SALT_ROUNDS`, `PORT`, `CLIENT_URL` are used by the running API.
+
+Uploaded deliverable files are **not** part of MongoDB. They are written by the storage service under `UPLOAD_DIR` (default `backend/uploads`, git-ignored), with `DELIVERABLE_MAX_FILE_SIZE` and `DELIVERABLE_ALLOWED_MIME_TYPES` controlling what may be stored. Only the metadata — name, size, type, checksum, storage key, authorized URL — is in `deliverableversions`. See [docs/deliverables.md §2](deliverables.md#2-aggregate--storage-model).
 
 ---
 

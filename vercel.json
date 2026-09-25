@@ -9,7 +9,13 @@
         },
         "backend": {
             "root": "backend"
-        }
+        },
+        
+          "src": "backend",
+          "framework": "express",
+          "runtime": "node",
+          "entrypoint": "server.js"
+        
     },
     "rewrites": [
         {
