@@ -94,6 +94,11 @@ export default function TaskModal({
       (task?.subtasks || []).map((s) => ({ title: s.title, completed: Boolean(s.completed) }))
     );
     setNewSubtask("");
+    setAssignedTo(
+    typeof task?.assignedTo === "object"
+    ? task.assignedTo?.id || ""
+    : task?.assignedTo || ""
+);
   }, [open, task, defaultStatus]);
   /* eslint-enable react-hooks/set-state-in-effect */
 

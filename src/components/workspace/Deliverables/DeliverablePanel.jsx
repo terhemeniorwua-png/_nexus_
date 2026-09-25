@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import EmptyState from "../EmptyState";
 import Modal from "../Modal";
 import { CheckIcon, ClockIcon, DocIcon, PlusIcon } from "../icons";
 import { useMutation, useResource } from "@/hooks/useResource";
+import { useSocketEvent, useSocketResync } from "@/hooks/useSocket";
+import { SOCKET_EVENTS } from "@/lib/socketEvents";
 import {
   CONTRIBUTOR_ROLES,
   DELIVERABLE_ACCEPT,
@@ -226,6 +228,33 @@ export default function DeliverablePanel({ taskId, taskStatus, role, isAssignee,
   const [uploading, setUploading] = useState(false);
   const [decision, setDecision] = useState(null);
   const [feedback, setFeedback] = useState("");
+
+  // Phase 18 — a reviewer watching this task sees a submission, a review
+  // decision or a new version land without a refresh. The event only says
+  // "this task's deliverable moved"; the panel re-reads it from the API, so
+  // what is rendered is always the database's answer.
+  const refreshOnDeliverableEvent = useCallback(() => {
+    refetch();
+    onChanged?.();
+  }, [refetch, onChanged]);
+
+  useSocketEvent(
+    SOCKET_EVENTS.DELIVERABLE_UPDATED,
+    ({ taskId: eventTaskId }) => {
+      if (String(eventTaskId) !== String(taskId)) return;
+      refreshOnDeliverableEvent();
+    },
+    { enabled: Boolean(taskId) }
+  );
+
+  useSocketEvent(
+    SOCKET_EVENTS.TASK_UPDATED,
+    () => refreshOnDeliverableEvent(),
+    { enabled: Boolean(taskId) }
+  );
+
+  // Reconnect resync — events missed while offline are not replayed.
+  useSocketResync(refreshOnDeliverableEvent, { enabled: Boolean(taskId) });
 
   const deliverable = data?.deliverable || null;
   const versions = data?.versions || [];

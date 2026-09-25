@@ -4,9 +4,9 @@ const { ApiError } = require("../middleware/errorHandler");
 const { hasProjectPermission } = require("../permissions/permissions");
 const { recordActivity } = require("../services/activity.service");
 const { createNotification } = require("../services/notification.service");
-const { getIO } = require("../sockets/store");
-
-const commentRoom = (projectId) => `board:${String(projectId)}`;
+const { toProject } = require("../sockets/emit");
+const { SOCKET_EVENTS } = require("../sockets/events");
+const { projectRoom } = require("../sockets/store");
 
 async function assertTask(req) {
   const Project = require("../models/project.model");
@@ -83,7 +83,7 @@ async function addComment(req, res, next) {
       });
     }
 
-    getIO()?.to(commentRoom(project._id)).emit("comment:added", { comment: populated });
+    toProject(project._id, SOCKET_EVENTS.COMMENT_CREATED, { comment: populated });
     res.status(201).json({ success: true, comment: populated });
   } catch (error) {
     next(error);
@@ -105,11 +105,11 @@ async function deleteComment(req, res, next) {
 
     await Comment.deleteOne({ _id: comment._id });
 
-    getIO()?.to(commentRoom(project._id)).emit("comment:deleted", { commentId: String(comment._id) });
+    toProject(project._id, SOCKET_EVENTS.COMMENT_DELETED, { commentId: String(comment._id) });
     res.json({ success: true, message: "Comment deleted" });
   } catch (error) {
     next(error);
   }
 }
 
-module.exports = { listComments, addComment, deleteComment, commentRoom };
+module.exports = { listComments, addComment, deleteComment, projectRoom };

@@ -1,4 +1,5 @@
 const Workspace = require("../models/workspace.model");
+const { slugifyChannelName } = require("../models/workspace.model");
 const WorkspaceMember = require("../models/workspaceMember.model");
 const Project = require("../models/project.model");
 const Task = require("../models/task.model");
@@ -289,8 +290,29 @@ async function removeMember(req, res, next) {
   }
 }
 
+/**
+ * A workspace's channels, with the derived `slug` filled in.
+ *
+ * `slug` is a pure function of `name`, so it is computed on read for channels
+ * created before Phase 19 and stored on create for new ones. Backfilling on
+ * read means existing workspaces immediately get `#general`,
+ * `#announcements` and `#project-help` with correct slugs without a migration.
+ */
+function serializeChannel(channel) {
+  const plain = typeof channel.toObject === "function" ? channel.toObject() : channel;
+  return {
+    id: String(plain._id),
+    name: plain.name,
+    slug: plain.slug || slugifyChannelName(plain.name),
+    description: plain.description || "",
+    projectId: plain.projectId ? String(plain.projectId) : null,
+    createdBy: plain.createdBy ? String(plain.createdBy) : null,
+    createdAt: plain.createdAt || null,
+  };
+}
+
 async function listChannels(req, res, next) {
-  res.json({ success: true, channels: req.workspace.channels || [] });
+  res.json({ success: true, channels: (req.workspace.channels || []).map(serializeChannel) });
 }
 
 async function createChannel(req, res, next) {
@@ -301,19 +323,26 @@ async function createChannel(req, res, next) {
       return next(new ApiError(400, "Channel name is required"));
     }
 
-    const channelName = String(name).trim().toLowerCase().replace(/\s+/g, "-");
-    if (req.workspace.channels.some((c) => c.name.toLowerCase() === channelName)) {
+    const slug = slugifyChannelName(name);
+    if (!slug) {
+      return next(new ApiError(400, "Channel name must contain letters or numbers"));
+    }
+
+    // Uniqueness is on the slug, so "Project Help" and "project-help" cannot
+    // both be created and later become two threads for one channel.
+    if (req.workspace.channels.some((c) => (c.slug || slugifyChannelName(c.name)) === slug)) {
       return next(new ApiError(409, "A channel with that name already exists"));
     }
 
     req.workspace.channels.push({
-      name: channelName,
+      name: String(name).trim(),
+      slug,
       createdBy: req.user._id,
     });
 
     await req.workspace.save();
 
-    res.status(201).json({ success: true, channels: req.workspace.channels });
+    res.status(201).json({ success: true, channels: req.workspace.channels.map(serializeChannel) });
   } catch (error) {
     next(error);
   }

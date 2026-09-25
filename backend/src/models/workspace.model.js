@@ -1,6 +1,16 @@
 const mongoose = require("mongoose");
 const { applyTransforms } = require("../utils/serialize");
 
+/**
+ * Channels are embedded in the workspace rather than living in their own
+ * collection: a channel has no life outside its workspace, and nesting it makes
+ * "list this workspace's channels" and "does this channel belong here?" a
+ * single document read.
+ *
+ * The `_id` Mongo assigns each embedded channel is the canonical identifier
+ * used by messages and by the `channel:<id>` socket room. `slug` is the
+ * human-facing, URL-safe form (`#project-help`).
+ */
 const channelSchema = new mongoose.Schema(
   {
     name: {
@@ -8,6 +18,12 @@ const channelSchema = new mongoose.Schema(
       required: [true, "Channel name is required"],
       trim: true,
       maxlength: [80, "Channel name cannot exceed 80 characters"],
+    },
+    slug: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: [80, "Channel slug cannot exceed 80 characters"],
     },
     description: {
       type: String,
@@ -24,6 +40,19 @@ const channelSchema = new mongoose.Schema(
   },
   { _id: true }
 );
+
+/**
+ * A channel name is turned into a slug once, here, so the server and the UI
+ * can never disagree about what `#project-help` looks like.
+ */
+function slugifyChannelName(name) {
+  return String(name || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
 
 const workspaceSchema = new mongoose.Schema(
   {
@@ -47,9 +76,10 @@ const workspaceSchema = new mongoose.Schema(
     },
     channels: {
       type: [channelSchema],
-      default: [
-        { name: "general" },
-        { name: "random" },
+      default: () => [
+        { name: "general", slug: "general", description: "Everything workspace-wide" },
+        { name: "announcements", slug: "announcements", description: "Workspace-wide updates" },
+        { name: "project-help", slug: "project-help", description: "Ask for help on a project" },
       ],
     },
   },
@@ -61,3 +91,4 @@ applyTransforms(workspaceSchema);
 const Workspace = mongoose.model("Workspace", workspaceSchema);
 
 module.exports = Workspace;
+module.exports.slugifyChannelName = slugifyChannelName;

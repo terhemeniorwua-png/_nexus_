@@ -21,6 +21,7 @@ import {
   BoardIcon,
 } from "@/components/workspace/icons";
 import { useResource, useMutation } from "@/hooks/useResource";
+import { useProjectRoom, useTaskRoomSignal } from "@/hooks/useSocket";
 import { useAuth } from "@/context/AuthContext";
 import ProgressBar from "@/components/workspace/ProgressBar";
 import DeliverablePanel from "@/components/workspace/Deliverables/DeliverablePanel";
@@ -272,6 +273,12 @@ export default function TaskDetailPage() {
   const { data: projectData, loading: projectLoading } = useResource(`/projects/${projectId}`);
   const { data: taskData, loading: taskLoading, refetch } = useResource(`/api/tasks/${taskId}`);
   const { run, loading } = useMutation();
+
+  // Phase 18 — real-time. The server authorizes the project room, and the
+  // event is only a signal: this page re-reads the task from the REST API, so
+  // what is rendered is always the database's answer.
+  useProjectRoom(projectId, undefined);
+  useTaskRoomSignal(taskId, refetch);
 
   const [statusError, setStatusError] = useState("");
   const [showEdit, setShowEdit] = useState(false);

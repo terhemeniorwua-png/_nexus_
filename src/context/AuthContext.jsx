@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { AUTH_ENDPOINTS, apiRequest } from "@/lib/api";
-import { disconnectSocket } from "@/lib/socket";
+import { connectSocket, disconnectSocket } from "@/lib/socket";
 
 const AuthContext = createContext(null);
 
@@ -30,6 +30,22 @@ export function AuthProvider({ children }) {
       active = false;
     };
   }, []);
+
+  // Phase 18 — the real-time connection follows the session: it opens once the
+  // user is known to be authenticated (whether that came from the httpOnly
+  // cookie or from a fresh login) and closes again on logout. Keyed on the id
+  // so a profile refresh does not tear the connection down and drop rooms.
+  const isAuthenticated = Boolean(user);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      disconnectSocket();
+      return;
+    }
+
+    connectSocket();
+    return () => disconnectSocket();
+  }, [isAuthenticated]);
 
   const refreshUser = useCallback(async () => {
     try {

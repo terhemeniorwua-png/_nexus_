@@ -24,6 +24,7 @@ const {
   listProjectTasks,
   createProjectTask,
 } = require("../controllers/task.controller");
+const { listDiscussion, postDiscussion } = require("../controllers/discussion.controller");
 
 const router = express.Router({ mergeParams: true });
 
@@ -73,5 +74,11 @@ router.delete("/:projectId/members/:userId", requireProjectPermission("remove_pr
 // filtered server-side.
 router.get("/:projectId/tasks", requireProjectPermission("view_task"), listProjectTasks);
 router.post("/:projectId/tasks", requireProjectPermission("create_task"), createProjectTask);
+
+// Phase 19 — project discussion. Registered here so it sits behind the same
+// globalProjectAccess mount as every other project-scoped resource: no route to
+// a project's discussion exists that does not first prove project access.
+router.get("/:projectId/discussion", requireProjectPermission("view_project"), listDiscussion);
+router.post("/:projectId/discussion", requireProjectPermission("comment"), postDiscussion);
 
 module.exports = router;

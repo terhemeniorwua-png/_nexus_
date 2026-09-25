@@ -874,10 +874,16 @@ async function runSeed() {
   ]);
 
   // ------------------------------------------------------------- CONVERSATIONS
+  // Phase 19: a direct-message thread is a real Conversation whose `directKey`
+  // is the sorted pair of participants, so it is findable without scanning
+  // messages, and whose members are exactly those two people.
+  const alanLinus = Conversation.directKeyFor(alan, linus);
+
   const conversation = await Conversation.create({
-    name: "Platform — direct",
+    directKey: alanLinus,
     isGroup: false,
     createdBy: alan,
+    workspaceId: workspace._id,
   });
 
   await ConversationMember.insertMany([
@@ -886,10 +892,66 @@ async function runSeed() {
   ]);
 
   // ----------------------------------------------------------------- MESSAGES
+  // Channel messages are keyed by the channel's `_id`, which is what the API
+  // and the `channel:<id>` socket room use. The default channels come from the
+  // Workspace schema, so they are looked up by name here.
+  const generalChannel = (workspace.channels || []).find((c) => c.name === "general");
+  const announcementsChannel = (workspace.channels || []).find((c) => c.name === "announcements");
+
   await Message.insertMany([
-    { workspaceId: workspace._id, channelId: "general", conversationId: null, userId: alan, content: "Welcome to the Acme workspace!" },
-    { workspaceId: workspace._id, channelId: "general", conversationId: null, userId: grace, content: "Thanks! Excited to get started." },
-    { workspaceId: workspace._id, channelId: null, conversationId: conversation._id, userId: alan, content: "Let's pair on the socket auth." },
+    {
+      kind: "CHANNEL",
+      workspaceId: workspace._id,
+      channelId: generalChannel ? String(generalChannel._id) : null,
+      userId: alan,
+      content: "Welcome to the Acme workspace!",
+    },
+    {
+      kind: "CHANNEL",
+      workspaceId: workspace._id,
+      channelId: generalChannel ? String(generalChannel._id) : null,
+      userId: grace,
+      content: "Thanks! Excited to get started.",
+    },
+    {
+      kind: "CHANNEL",
+      workspaceId: workspace._id,
+      channelId: announcementsChannel ? String(announcementsChannel._id) : null,
+      userId: ada,
+      content: "Reminder: the platform review moved to Thursday.",
+    },
+    {
+      kind: "PROJECT",
+      workspaceId: workspace._id,
+      projectId: platformProject,
+      userId: alan,
+      content: "Kicking off the discussion here — please keep platform decisions in this thread.",
+    },
+    {
+      kind: "PROJECT",
+      workspaceId: workspace._id,
+      projectId: platformProject,
+      userId: linus,
+      content: "Agreed. I'll post the router design doc once the first spike lands.",
+    },
+    {
+      kind: "DIRECT",
+      workspaceId: workspace._id,
+      conversationId: conversation._id,
+      recipientId: linus,
+      userId: alan,
+      content: "Let's pair on the socket auth.",
+    },
+    {
+      kind: "DIRECT",
+      workspaceId: workspace._id,
+      conversationId: conversation._id,
+      recipientId: linus,
+      userId: alan,
+      content: "Any objection to shipping the channel rooms first?",
+      // Deliberately left unread so the seeded inbox has something to show.
+      readAt: null,
+    },
   ]);
 
   // ------------------------------------------------------------------- VIEWS

@@ -10,6 +10,7 @@ const TYPES = [
   "PROJECT_INVITATION",
   "COMMENT_MENTION",
   "MENTION",
+  "DIRECT_MESSAGE",
   "TASK_MOVED",
   "MEMBER_ADDED",
   "DOCUMENT_SHARED",
@@ -60,7 +61,9 @@ const notificationSchema = new mongoose.Schema(
     },
     entityType: {
       type: String,
-      enum: ["project", "task", "subtask", "deliverable", "review", "comment", "member", "channel", "workspace"],
+      // `conversation` was added for Phase 19 direct messages, whose target is
+      // a thread rather than a task or a project.
+      enum: ["project", "task", "subtask", "deliverable", "review", "comment", "member", "channel", "workspace", "conversation"],
       default: null,
     },
     entityId: {

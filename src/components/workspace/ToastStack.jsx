@@ -6,6 +6,7 @@ import { BoardIcon, ChatIcon, SparkIcon, CheckIcon } from "./icons";
 const ICON_BY_TYPE = {
   TASK_ASSIGNED: <BoardIcon size={15} />,
   MENTION: <ChatIcon size={15} />,
+  DIRECT_MESSAGE: <ChatIcon size={15} />,
   MEMBER_ADDED: <SparkIcon size={15} />,
   TASK_MOVED: <BoardIcon size={15} />,
   DOCUMENT_SHARED: <SparkIcon size={15} />,
@@ -14,6 +15,7 @@ const ICON_BY_TYPE = {
 const ACCENT_BY_TYPE = {
   TASK_ASSIGNED: "#3b82f6",
   MENTION: "#a855f7",
+  DIRECT_MESSAGE: "#38bdf8",
   MEMBER_ADDED: "#22c55e",
   TASK_MOVED: "#eab308",
   DOCUMENT_SHARED: "#0d9488",

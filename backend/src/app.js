@@ -11,6 +11,8 @@ const { authenticate } = require("./middleware/authenticate");
 const { reorderTask } = require("./controllers/board.controller");
 const documentRoutes = require("./routes/document.route");
 const messageRoutes = require("./routes/message.route");
+const channelMessageRoutes = require("./routes/channelMessage.route");
+const conversationRoutes = require("./routes/conversation.route");
 const notificationRoutes = require("./routes/notification.route");
 const activityRoutes = require("./routes/activity.route");
 const overviewRoutes = require("./routes/overview.route");
@@ -49,6 +51,13 @@ app.use("/api/workspaces/:workspaceId/projects/:projectId/deliverables", deliver
 app.use("/api/workspaces/:workspaceId/projects/:projectId/resources", projectResourceRoutes);
 app.use("/api/workspaces/:workspaceId/documents", documentRoutes);
 app.use("/api/workspaces/:workspaceId/messages", messageRoutes);
+// Phase 19 channel-scoped alias (spec §9). The workspace comes from the
+// channel document, so this route takes no workspace parameter.
+app.use("/api/channels", channelMessageRoutes);
+// Phase 19 direct messages. Mounted at the top level, not under a workspace:
+// a DM is a private thread between two people, and its readability is decided
+// by those two people — not by a workspace route.
+app.use("/api/messages", conversationRoutes);
 app.use("/api/workspaces/:workspaceId/activity", activityRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/me", overviewRoutes);

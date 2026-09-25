@@ -12,7 +12,7 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { useResource, useMutation } from "@/hooks/useResource";
-import { getSocket } from "@/lib/socket";
+import { useProjectRefresh, useProjectRoom } from "@/hooks/useSocket";
 import Column from "./Column";
 import TaskCard from "./TaskCard";
 import TaskModal from "./TaskModal";
@@ -99,36 +99,12 @@ export default function Board({ workspaceId, projectId, members, role = "" }) {
   }, [boardData]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  useEffect(() => {
-    const socket = getSocket();
-    if (!socket) return;
-
-    socket.emit("board:join", { projectId, workspaceId });
-
-    let timer = null;
-    const schedule = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => refetch(), 250);
-    };
-
-    const events = [
-      "task:created",
-      "task:moved",
-      "task:updated",
-      "task:deleted",
-      "column:created",
-      "column:updated",
-      "column:deleted",
-    ];
-
-    events.forEach((event) => socket.on(event, schedule));
-
-    return () => {
-      clearTimeout(timer);
-      events.forEach((event) => socket.off(event, schedule));
-      socket.emit("board:leave", { projectId });
-    };
-  }, [projectId, workspaceId, refetch]);
+  // Phase 18 — real-time. The backend authorizes the project room and the
+  // events are only a signal: the board re-reads itself from the REST API so
+  // what is rendered is always the database's answer, never an optimistic
+  // guess carried by a socket frame.
+  useProjectRoom(projectId, workspaceId);
+  useProjectRefresh(refetch);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -236,7 +212,14 @@ export default function Board({ workspaceId, projectId, members, role = "" }) {
                 const col = columns.find((c) => c.id === columnId);
                 setModal({ type: "create", columnId, status: col?.name });
               }}
-              onOpenTask={(task) => setModal({ type: "edit", task })}
+              onOpenTask={(task) => {
+                if (!task) {
+                    console.error("Cannot open task modal: task is null");
+                  return;
+                  }
+
+                    setModal({ type: "edit", task });
+                }}
             />
           ))}
         </div>
@@ -248,7 +231,7 @@ export default function Board({ workspaceId, projectId, members, role = "" }) {
             </div>
           ) : null}
         </DragOverlay>
-      </DndContext>
+            </DndContext>
 
       <TaskModal
         open={Boolean(modal)}

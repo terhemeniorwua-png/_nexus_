@@ -11,6 +11,7 @@ import Modal from "@/components/workspace/Modal";
 import EmptyState from "@/components/workspace/EmptyState";
 import ProjectForm from "@/components/workspace/ProjectForm";
 import ProgressBar from "@/components/workspace/ProgressBar";
+import ProjectDiscussion from "@/components/workspace/Messaging/ProjectDiscussion";
 import { ProjectStatusBadge, ProjectPriorityBadge } from "@/components/workspace/ProjectBadge";
 import { formatDate } from "@/lib/workspaceApi";
 
@@ -62,6 +63,10 @@ export default function ProjectDetailPage() {
   const canManage = MANAGEABLE_ROLES.includes(role);
   const canDelete = DELETABLE_ROLES.includes(role);
   const canGrantManager = role === "WORKSPACE_OWNER" || role === "ADMIN";
+  // Mirrors the server's `comment` permission, which is what the discussion
+  // POST endpoint requires. This only decides whether the composer is drawn —
+  // the endpoint independently refuses an unauthorized post.
+  const canPostDiscussion = ["WORKSPACE_OWNER", "ADMIN", "PROJECT_MANAGER", "MEMBER"].includes(role);
   const members = useMemo(() => project?.members || [], [project]);
   const total = project?.stats?.taskCount || 0;
   const done = project?.stats?.doneCount || 0;
@@ -359,6 +364,21 @@ export default function ProjectDetailPage() {
               </Link>
             </div>
           )}
+
+          <div className="mt-8">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-[14px] font-semibold text-white">Discussion</h2>
+            </div>
+            <p className="mb-3 text-[12.5px] text-zinc-500">
+              Project conversations are visible to everyone with access to this
+              project.
+            </p>
+            <ProjectDiscussion
+              projectId={project.id}
+              canPost={canPostDiscussion}
+              role={role}
+            />
+          </div>
 
           <div className="mt-8">
             <div className="mb-3 flex items-center justify-between">

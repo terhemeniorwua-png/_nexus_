@@ -1,125 +1,94 @@
-const Message = require("../models/message.model");
-const WorkspaceMember = require("../models/workspaceMember.model");
+"use strict";
+
+/**
+ * Workspace channel messages.
+ *
+ * Deliberately thin: every rule that matters — who may read, what counts as
+ * valid content, who the message is delivered to, and the order in which
+ * those things happen — lives in `services/messaging.service.js`. A controller
+ * that decides any of that for itself is how two endpoints end up with two
+ * different answers to "who can see this?".
+ *
+ * The route already guarantees `authenticate` + `memberOf` +
+ * `requirePermission("view_channels"|"send_message")`; the service re-derives
+ * access from the database anyway, because middleware coverage is a property of
+ * the route, and this endpoint must be safe regardless of what is mounted
+ * above it.
+ */
+
 const { ApiError } = require("../middleware/errorHandler");
-const { createNotification } = require("../services/notification.service");
-const { getIO } = require("../sockets/store");
+const messaging = require("../services/messaging.service");
 
-function channelRoom(workspaceId, channelId) {
-  return `workspace:${String(workspaceId)}:channel:${String(channelId)}`;
-}
-
-function isDm(channelId) {
-  return typeof channelId === "string" && channelId.startsWith("dm:");
-}
-
-function dmPartners(channelId) {
-  return String(channelId).replace(/^dm:/, "").split("_");
-}
-
-async function assertChannelAccess(req, channelId) {
-  if (isDm(channelId)) {
-    const partners = dmPartners(channelId);
-    if (!partners.includes(String(req.user._id))) {
-      throw new ApiError(403, "You do not have access to this conversation");
-    }
-    return;
-  }
-
-  const workspace = await require("../models/workspace.model").findById(req.workspace._id);
-  const known = (workspace.channels || []).some((c) => String(c._id) === String(channelId) || c.name === channelId);
-  if (!known) {
-    throw new ApiError(404, "Channel not found");
-  }
-}
-
-async function listMessages(req, res, next) {
+/**
+ * Shared implementation for the two channel message routes.
+ *
+ * The channel-scoped route (`/api/channels/:channelId/messages`) has no
+ * `workspaceId` in the path, so the service derives the owning workspace from
+ * the channel. Both routes therefore reach the same service call and the same
+ * authorization — the only difference is which of the two shapes the frontend
+ * used to reach it.
+ */
+async function respondList(req, res, next, { workspaceScoped }) {
   try {
-    const { channelId } = req.query;
-    if (!channelId) return next(new ApiError(400, "Channel is required"));
+    const channelId = workspaceScoped ? req.query.channelId : req.params.channelId;
+    if (!channelId) throw new ApiError(400, "Channel is required");
 
-    await assertChannelAccess(req, channelId);
-
-    const messages = await Message.find({ workspaceId: req.workspace._id, channelId })
-      .sort({ createdAt: -1 })
-      .limit(120)
-      .populate("userId", "name email avatar");
-
-    res.json({ success: true, messages: messages.reverse() });
-  } catch (error) {
-    next(error);
-  }
-}
-
-async function sendMessage(req, res, next) {
-  try {
-    const { channelId, content } = req.body;
-
-    if (!channelId) return next(new ApiError(400, "Channel is required"));
-    if (!content || !String(content).trim()) return next(new ApiError(400, "Message content is required"));
-
-    await assertChannelAccess(req, channelId);
-
-    const message = await Message.create({
-      workspaceId: req.workspace._id,
-      channelId,
+    const { messages } = await messaging.listChannelMessages({
       userId: req.user._id,
-      content: String(content).trim(),
+      // The workspace-scoped route supplies its own; the channel-scoped route
+      // leaves it undefined so the service resolves it from the channel.
+      workspaceId: workspaceScoped ? req.workspace._id : undefined,
+      channelId,
+      limit: req.query.limit,
     });
 
-    const populated = await Message.findById(message._id).populate("userId", "name email avatar");
-    const io = getIO();
-
-    io?.to(channelRoom(req.workspace._id, channelId)).emit("message:sent", { message: populated });
-
-    if (isDm(channelId)) {
-      const partners = dmPartners(channelId);
-      partners.forEach((partnerId) => {
-        if (String(partnerId) !== String(req.user._id)) {
-          io?.to(`user:${partnerId}`).emit("dm:sent", { message: populated });
-        }
-      });
-    }
-
-    await handleMentions(req, populated);
-
-    res.status(201).json({ success: true, message: populated });
+    res.json({ success: true, messages });
   } catch (error) {
     next(error);
   }
 }
 
-async function handleMentions(req, message) {
+async function respondSend(req, res, next, { workspaceScoped }) {
   try {
-    const members = await WorkspaceMember.find({ workspaceId: req.workspace._id }).populate(
-      "userId",
-      "name email avatar"
-    );
+    const channelId = workspaceScoped ? req.body.channelId : req.params.channelId;
+    if (!channelId) throw new ApiError(400, "Channel is required");
 
-    const text = String(message.content);
-    const mentioned = members.filter((m) => {
-      if (!m.userId || !m.userId.name) return false;
-      if (String(m.userId._id) === String(req.user._id)) return false;
-      const firstName = m.userId.name.split(" ")[0];
-      const scanner = `@${firstName}`;
-      return text.includes(scanner) || text.includes(`@${m.userId.name}`);
+    const message = await messaging.postChannelMessage({
+      userId: req.user._id,
+      workspaceId: workspaceScoped ? req.workspace._id : undefined,
+      channelId,
+      content: req.body.content,
     });
 
-    await Promise.all(
-      mentioned.map((m) =>
-        createNotification({
-          userId: m.userId._id,
-          actorId: req.user._id,
-          workspaceId: req.workspace._id,
-          type: "MENTION",
-          title: `${req.user.name} mentioned you`,
-          body: text.slice(0, 140),
-          link: `/workspaces/${req.workspace._id}/messages`,
-        })
-      )
-    );
+    res.status(201).json({ success: true, message });
   } catch (error) {
-    console.error("[nexus] Mention processing failed:", error.message);
+    next(error);
   }
 }
 
-module.exports = { listMessages, sendMessage, channelRoom, isDm, dmPartners };
+/** GET /api/workspaces/:workspaceId/messages?channelId=... */
+function listMessages(req, res, next) {
+  return respondList(req, res, next, { workspaceScoped: true });
+}
+
+/** POST /api/workspaces/:workspaceId/messages */
+function sendMessage(req, res, next) {
+  return respondSend(req, res, next, { workspaceScoped: true });
+}
+
+/** GET /api/channels/:channelId/messages */
+function listChannelMessagesById(req, res, next) {
+  return respondList(req, res, next, { workspaceScoped: false });
+}
+
+/** POST /api/channels/:channelId/messages */
+function sendChannelMessageById(req, res, next) {
+  return respondSend(req, res, next, { workspaceScoped: false });
+}
+
+module.exports = {
+  listMessages,
+  sendMessage,
+  listChannelMessagesById,
+  sendChannelMessageById,
+};

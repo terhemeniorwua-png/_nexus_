@@ -12,6 +12,8 @@ const User = require("../models/user.model");
 const { ApiError } = require("../middleware/errorHandler");
 const { recordActivity } = require("../services/activity.service");
 const { ensureDefaultColumns } = require("../services/board.service");
+const { toProject } = require("../sockets/emit");
+const { SOCKET_EVENTS } = require("../sockets/events");
 const {
   getAccessibleProjectIds,
   attachRolesToProjects,
@@ -345,6 +347,11 @@ async function updateProject(req, res, next) {
     });
 
     const [data] = await enrichProjects([project]);
+
+    // Database first, then tell the project room. `data` is exactly what the
+    // REST response returns, so a connected client needs no second shape.
+    toProject(project._id, SOCKET_EVENTS.PROJECT_UPDATED, { project: data });
+
     res.json({ success: true, project: data });
   } catch (error) {
     next(error);

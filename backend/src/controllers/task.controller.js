@@ -10,7 +10,11 @@ const { recordActivity } = require("../services/activity.service");
 const { createNotification } = require("../services/notification.service");
 const { reindexColumn } = require("../services/board.service");
 const { deleteTaskDeliverables } = require("../services/deliverableCascade.service");
-const { getIO, boardRoom } = require("../sockets/store");
+const {
+  publishTaskCreated,
+  publishTaskDeleted,
+  publishTaskUpdate,
+} = require("../services/taskEvents.service");
 const {
   assertStatusTransition,
   assertAssigneeInProject,
@@ -33,11 +37,6 @@ const {
 
 function taskLink(req, task) {
   return `/projects/${String(req.project._id)}/tasks/${String(task._id)}`;
-}
-
-async function publishTaskEmit(event, req, task) {
-  const populated = await Task.findById(task._id).populate("assignedTo", "name email avatar");
-  getIO()?.to(boardRoom(req.project._id)).emit(event, { task: populated });
 }
 
 async function recordTaskActivity(req, task, action, metadata = {}) {
@@ -126,7 +125,7 @@ async function createProjectTask(req, res, next) {
       });
     }
 
-    await publishTaskEmit("task:created", req, task);
+    await publishTaskCreated(req, task);
 
     const assignableMembers = await getAssignables(req);
     res.status(201).json({
@@ -194,7 +193,7 @@ async function updateTaskDetails(req, res, next) {
       });
     }
 
-    await publishTaskEmit("task:updated", req, task);
+    await publishTaskUpdate(req, task);
     res.json({ success: true, task: serializeTask(await Task.findById(task._id).populate("assignedTo", "name email avatar")) });
   } catch (error) {
     next(error);
@@ -215,7 +214,7 @@ async function deleteTask(req, res, next) {
 
     await recordTaskActivity(req, task, "TASK_DELETED");
 
-    getIO()?.to(boardRoom(req.project._id)).emit("task:deleted", { taskId: String(task._id) });
+    publishTaskDeleted(req, task._id);
     res.json({ success: true, message: "Task deleted" });
   } catch (error) {
     next(error);
@@ -272,7 +271,7 @@ async function changeTaskStatus(req, res, next) {
       });
     }
 
-    await publishTaskEmit("task:updated", req, task);
+    await publishTaskUpdate(req, task);
     res.json({
       success: true,
       message: `Task moved from ${fromStatus} to ${toStatus}`,
@@ -330,7 +329,7 @@ async function createSubtask(req, res, next) {
     const created = task.subtasks[task.subtasks.length - 1];
     await recordTaskActivity(req, task, "TASK_UPDATED", { subtask: created.title });
 
-    await publishTaskEmit("task:updated", req, task);
+    await publishTaskUpdate(req, task);
 
     res.status(201).json({
       success: true,
@@ -386,7 +385,7 @@ async function updateSubtask(req, res, next) {
     await task.save();
 
     await recordTaskActivity(req, task, "TASK_UPDATED", { subtask: subtask.title });
-    await publishTaskEmit("task:updated", req, task);
+    await publishTaskUpdate(req, task);
 
     res.json({
       success: true,
@@ -409,7 +408,7 @@ async function deleteSubtask(req, res, next) {
     await task.save();
 
     await recordTaskActivity(req, task, "TASK_UPDATED", { removedSubtask: removed.title });
-    await publishTaskEmit("task:updated", req, task);
+    await publishTaskUpdate(req, task);
 
     res.json({
       success: true,

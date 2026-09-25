@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { useAuth } from "@/context/AuthContext";
-import { getSocket } from "@/lib/socket";
 import { validateLogin } from "@/lib/validation";
 import { AuthInput } from "@/components/auth/AuthInput";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
@@ -73,8 +72,9 @@ export function LoginForm({ persona: personaProp }) {
 
     setSubmitting(true);
     try {
+      // The real-time connection is opened by AuthProvider as soon as the
+      // session exists, so it is not started here.
       await login(email, password);
-      getSocket();
       try {
         await signIn("credentials", {
           email,

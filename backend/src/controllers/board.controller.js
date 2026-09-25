@@ -23,10 +23,17 @@ const {
 } = require("../services/task.service");
 const { recordActivity } = require("../services/activity.service");
 const { createNotification } = require("../services/notification.service");
-const { getIO } = require("../sockets/store");
+const { toProject } = require("../sockets/emit");
+const { SOCKET_EVENTS } = require("../sockets/events");
+const { projectRoom } = require("../sockets/store");
+const { deleteTaskDeliverables } = require("../services/deliverableCascade.service");
+const {
+  publishTaskCreated,
+  publishTaskDeleted,
+  publishTaskMoved,
+  publishTaskUpdate,
+} = require("../services/taskEvents.service");
 const { taskProgress, assertWeightTotalWithinLimit, assertApprovedTaskStaysComplete } = require("../services/progress.service");
-
-const boardRoom = (projectId) => `board:${String(projectId)}`;
 
 async function assertProjectInWorkspace(req, projectId) {
   const Project = require("../models/project.model");
@@ -81,7 +88,7 @@ async function createColumn(req, res, next) {
       position: last ? last.position + 1 : 0,
     });
 
-    getIO()?.to(boardRoom(project._id)).emit("column:created", { column });
+    toProject(project._id, SOCKET_EVENTS.COLUMN_CREATED, { column });
     res.status(201).json({ success: true, column });
   } catch (error) {
     next(error);
@@ -102,7 +109,7 @@ async function updateColumn(req, res, next) {
     }
     await column.save();
 
-    getIO()?.to(boardRoom(req.params.projectId)).emit("column:updated", { column });
+    toProject(req.params.projectId, SOCKET_EVENTS.COLUMN_UPDATED, { column });
     res.json({ success: true, column });
   } catch (error) {
     next(error);
@@ -119,7 +126,7 @@ async function deleteColumn(req, res, next) {
     await Task.deleteMany({ columnId: column._id });
     await BoardColumn.deleteOne({ _id: column._id });
 
-    getIO()?.to(boardRoom(project._id)).emit("column:deleted", { columnId: String(column._id) });
+    toProject(project._id, SOCKET_EVENTS.COLUMN_DELETED, { columnId: String(column._id) });
     res.json({ success: true, message: "Column deleted" });
   } catch (error) {
     next(error);
@@ -220,7 +227,7 @@ async function createTask(req, res, next) {
       });
     }
 
-    getIO()?.to(boardRoom(project._id)).emit("task:created", { task: populated });
+    await publishTaskCreated(req, task);
     res.status(201).json({ success: true, task: populated });
   } catch (error) {
     next(error);
@@ -305,7 +312,7 @@ async function updateTask(req, res, next) {
       });
     }
 
-    getIO()?.to(boardRoom(project._id)).emit("task:updated", { task: populated });
+    await publishTaskUpdate(req, task);
     res.json({ success: true, task: populated });
   } catch (error) {
     next(error);
@@ -337,7 +344,7 @@ async function deleteTask(req, res, next) {
       metadata: { title: task.title },
     });
 
-    getIO()?.to(boardRoom(project._id)).emit("task:deleted", { taskId: String(task._id) });
+    publishTaskDeleted(req, task._id);
     res.json({ success: true, message: "Task deleted" });
   } catch (error) {
     next(error);
@@ -365,7 +372,7 @@ async function handleMoveTask(req, res, next) {
       metadata: { title: task.title, columnId, projectName: project.name },
     });
 
-    getIO()?.to(boardRoom(project._id)).emit("task:moved", { task: populated, actorId: String(req.user._id) });
+    await publishTaskMoved(req, task, req.user._id);
     res.json({ success: true, task: populated });
   } catch (error) {
     next(error);
@@ -453,9 +460,7 @@ async function reorderTask(req, res, next) {
       },
     });
 
-    getIO()
-      ?.to(boardRoom(project._id))
-      .emit("task:moved", { task: populated, actorId: String(req.user._id) });
+    await publishTaskMoved(req, moved, req.user._id);
 
     res.json({ success: true, task: populated });
   } catch (error) {
@@ -474,5 +479,6 @@ module.exports = {
   handleMoveTask,
   reorderTask,
   resolveMentions,
-  boardRoom,
+  projectRoom,
+  boardRoom: projectRoom,
 };

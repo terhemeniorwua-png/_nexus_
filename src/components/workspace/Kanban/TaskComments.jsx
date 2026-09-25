@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Avatar from "../Avatar";
 import { useResource, useMutation } from "@/hooks/useResource";
-import { getSocket } from "@/lib/socket";
+import { useSocketEvent } from "@/hooks/useSocket";
+import { SOCKET_EVENTS } from "@/lib/socketEvents";
 import { SendIcon, TrashIcon } from "../icons";
 import { formatRelative } from "@/lib/workspaceApi";
 
@@ -26,34 +27,34 @@ export default function TaskComments({
   const [error, setError] = useState("");
 
   const comments = data?.comments || [];
-
-  useEffect(() => {
-    if (!taskId) return;
-    const socket = getSocket();
-    if (!socket) return;
-
-    const onAdded = ({ comment }) => {
+  // Phase 18 — live comments for the open task.
+  //
+  // The author's own comment comes back twice: once as the POST response and
+  // once as the socket event. Keying on the comment id means it is rendered
+  // once, and a comment that another user just posted appears immediately.
+  useSocketEvent(
+    SOCKET_EVENTS.COMMENT_CREATED,
+    ({ comment }) => {
       if (!comment || String(comment.taskId) !== String(taskId)) return;
       setData((prev) => {
         const existing = prev?.comments || [];
         if (existing.some((c) => String(c.id) === String(comment.id))) return prev;
-        return { comments: [...existing, comment] };
+        return { ...(prev || {}), comments: [...existing, comment] };
       });
-    };
+    },
+    { enabled: Boolean(taskId) }
+  );
 
-    const onDeleted = ({ commentId }) => {
+  useSocketEvent(
+    SOCKET_EVENTS.COMMENT_DELETED,
+    ({ commentId }) => {
       setData((prev) => ({
+        ...(prev || {}),
         comments: (prev?.comments || []).filter((c) => String(c.id) !== String(commentId)),
       }));
-    };
-
-    socket.on("comment:added", onAdded);
-    socket.on("comment:deleted", onDeleted);
-    return () => {
-      socket.off("comment:added", onAdded);
-      socket.off("comment:deleted", onDeleted);
-    };
-  }, [taskId, setData]);
+    },
+    { enabled: Boolean(taskId) }
+  );
 
   async function handleSend(event) {
     event.preventDefault();

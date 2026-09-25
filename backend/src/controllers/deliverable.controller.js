@@ -32,6 +32,7 @@ const {
   updateDraftVersion,
 } = require("../services/deliverable.service");
 const { publishTaskUpdate } = require("../services/taskEvents.service");
+const { publishDeliverableUpdate } = require("../services/deliverableEvents.service");
 const { openStoredFile } = require("../services/storage.service");
 
 function wantsSubmit(req) {
@@ -101,6 +102,8 @@ async function createDeliverable(req, res, next) {
       await notifyReviewerPending({ project: req.project, task: req.task, version, user: req.user });
       await publishTaskUpdate(req, req.task);
     }
+
+    await publishDeliverableUpdate(req, req.task, deliverable._id, version?.versionNumber ?? null);
 
     const bundle = await loadDeliverableBundle(deliverable._id);
     return res.status(201).json(await deliverablePayload({ ...bundle, task: req.task, version }));
@@ -202,6 +205,7 @@ async function createVersion(req, res, next) {
       version,
     });
     await publishTaskUpdate(req, req.task);
+    await publishDeliverableUpdate(req, req.task, req.deliverable._id, version.versionNumber);
 
     const bundle = await loadDeliverableBundle(req.deliverable._id);
     return res.status(201).json(await deliverablePayload({ ...bundle, task: req.task, version }));
@@ -219,6 +223,8 @@ async function patchVersion(req, res, next) {
       user: req.user,
       data: req.body || {},
     });
+
+    await publishDeliverableUpdate(req, req.task, req.deliverable._id, version.versionNumber);
 
     const bundle = await loadDeliverableBundle(req.deliverable._id);
     return res.status(200).json({
@@ -260,6 +266,7 @@ async function submitVersionHandler(req, res, next) {
     });
     await notifyReviewerPending({ project: req.project, task: req.task, version: req.version, user: req.user });
     await publishTaskUpdate(req, req.task);
+    await publishDeliverableUpdate(req, req.task, req.deliverable._id, req.version.versionNumber);
 
     const bundle = await loadDeliverableBundle(req.deliverable._id);
     return res.json(await deliverablePayload({ ...bundle, task: req.task, version: req.version }));
@@ -289,6 +296,7 @@ async function startReviewHandler(req, res, next) {
       version: req.version,
     });
     await publishTaskUpdate(req, req.task);
+    await publishDeliverableUpdate(req, req.task, req.deliverable._id, req.version.versionNumber);
 
     const bundle = await loadDeliverableBundle(req.deliverable._id);
     return res.json(await deliverablePayload({ ...bundle, task: req.task, version: req.version }));
@@ -328,6 +336,7 @@ async function handleDecision(req, res, next, decision) {
       feedback: result.review.feedback,
     });
     await publishTaskUpdate(req, req.task);
+    await publishDeliverableUpdate(req, req.task, req.deliverable._id, result.version.versionNumber);
 
     const bundle = await loadDeliverableBundle(req.deliverable._id);
     return res.json({
