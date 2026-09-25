@@ -8,6 +8,8 @@ const TeamMember = require("../models/teamMember.model");
 const Project = require("../models/project.model");
 const Task = require("../models/task.model");
 const Document = require("../models/document.model");
+const Deliverable = require("../models/deliverable.model");
+const DeliverableVersion = require("../models/deliverableVersion.model");
 const { ApiError } = require("./errorHandler");
 const {
   hasWorkspacePermission,
@@ -337,7 +339,8 @@ async function taskAccess(req, _res, next) {
     const project = await Project.findById(task.projectId);
     if (!project) return next(new ApiError(404, "Task not found"));
 
-    await attachProjectTaskContext({ req, task, project, next });
+    await attachProjectTaskContext({ req, task, project });
+    next();
   } catch (error) {
     next(error);
   }
@@ -368,39 +371,44 @@ async function subtaskTaskAccess(req, _res, next) {
     const project = await Project.findById(task.projectId);
     if (!project) return next(new ApiError(404, "Subtask not found"));
 
-    await attachProjectTaskContext({ req, task, project, next, subtask });
+    await attachProjectTaskContext({ req, task, project, subtask });
+    next();
   } catch (error) {
     next(error);
   }
 }
 
-async function attachProjectTaskContext({ req, task, project, next, subtask = null }) {
-  try {
-    const workspace = await Workspace.findById(project.workspaceId);
-    if (!workspace) return next(new ApiError(404, "Workspace not found"));
-
-    await attachWorkspaceContext(req, workspace);
-
-    const resolved = await resolveProjectRole({
-      user: req.user,
-      project,
-      isOwner: Boolean(req.isOwner),
-      workspaceMemberRole: req.memberRole,
-    });
-
-    if (!resolved) {
-      return next(new ApiError(403, "You do not have permission to view this task"));
-    }
-
-    req.project = project;
-    req.task = task;
-    if (subtask) req.subtask = subtask;
-    req.projectMember = resolved.member;
-    req.projectRole = resolved.role;
-    next();
-  } catch (error) {
-    next(error);
+/**
+ * Resolve workspace + project access for an already-loaded task/project pair
+ * and attach the result to the request. Returns `true` when it answered the
+ * request itself (workspace/project missing, or no project access) so callers
+ * such as `deliverableAccess` know not to keep loading context.
+ */
+async function attachProjectTaskContext({ req, task, project, subtask = null, deliverable = null }) {
+  const workspace = await Workspace.findById(project.workspaceId);
+  if (!workspace) {
+    throw new ApiError(404, "Workspace not found");
   }
+
+  await attachWorkspaceContext(req, workspace);
+
+  const resolved = await resolveProjectRole({
+    user: req.user,
+    project,
+    isOwner: Boolean(req.isOwner),
+    workspaceMemberRole: req.memberRole,
+  });
+
+  if (!resolved) {
+    throw new ApiError(403, "You do not have permission to view this task");
+  }
+
+  req.project = project;
+  req.task = task;
+  if (subtask) req.subtask = subtask;
+  if (deliverable) req.deliverable = deliverable;
+  req.projectMember = resolved.member;
+  req.projectRole = resolved.role;
 }
 
 /**
@@ -474,6 +482,56 @@ function documentAccess(permission) {
   };
 }
 
+/**
+ * Deliverable context gate (Phase 12) — the IDOR boundary.
+ *
+ * Every `/api/deliverables/:deliverableId/...` request walks the full chain
+ * Deliverable → Task → Project → Workspace and asks the Phase 9 access model
+ * whether this user may act inside that project. Knowing an id is never
+ * enough: a deliverable from another project resolves to a project the caller
+ * has no role on, which is a 403 before any route logic runs (§39, §40).
+ *
+ * Must run AFTER `authenticate`. Attaches req.deliverable, req.version (when
+ * :versionNumber is present), req.task, req.project, req.workspace,
+ * req.projectRole and req.projectMember, then hands off to the caller's
+ * permission middleware.
+ */
+async function deliverableAccess(req, _res, next) {
+  try {
+    const { deliverableId, versionNumber } = req.params;
+
+    if (!deliverableId || !mongoose.isValidObjectId(deliverableId)) {
+      return next(new ApiError(404, "Deliverable not found"));
+    }
+
+    const deliverable = await Deliverable.findById(deliverableId);
+    if (!deliverable) return next(new ApiError(404, "Deliverable not found"));
+
+    // Always resolve through the task — the denormalized projectId on the
+    // deliverable is a query helper, never the authorization source.
+    const task = await Task.findById(deliverable.taskId);
+    if (!task) return next(new ApiError(404, "Deliverable not found"));
+
+    const project = await Project.findById(task.projectId);
+    if (!project) return next(new ApiError(404, "Deliverable not found"));
+
+    await attachProjectTaskContext({ req, task, project, deliverable });
+
+    if (versionNumber !== undefined) {
+      const version = await DeliverableVersion.findOne({
+        deliverableId: deliverable._id,
+        versionNumber: Number(versionNumber),
+      });
+      if (!version) return next(new ApiError(404, "Deliverable version not found"));
+      req.version = version;
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   requirePermission,
   workspaceFromBody,
@@ -487,5 +545,6 @@ module.exports = {
   taskAccess,
   subtaskTaskAccess,
   requireTaskOwnership,
+  deliverableAccess,
   documentAccess,
 };

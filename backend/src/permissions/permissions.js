@@ -95,6 +95,11 @@ const PROJECT_ACTIONS = Object.freeze([
   "review_deliverable",
   "approve_deliverable",
   "request_changes",
+  // Phase 12 deliverable lifecycle.
+  "create_deliverable",
+  "submit_deliverable",
+  "create_deliverable_version",
+  "request_deliverable_changes",
   "view_project_members",
   "invite_project_member",
   "remove_project_member",
@@ -164,6 +169,11 @@ const PROJECT_MANAGER_ACTIONS = Object.freeze([
   "review_deliverable",
   "approve_deliverable",
   "request_changes",
+  // Phase 12 deliverable lifecycle.
+  "create_deliverable",
+  "submit_deliverable",
+  "create_deliverable_version",
+  "request_deliverable_changes",
   "view_project_members",
   "invite_project_member",
   "remove_project_member",
@@ -190,6 +200,9 @@ const MEMBER_ACTIONS = Object.freeze([
   "submit_task", // worker transitions: assignee-only (IN_PROGRESS → SUBMITTED)
   "view_deliverable",
   "upload_deliverable", // restricted to deliverables of the user's assigned tasks
+  "create_deliverable", // own assigned tasks only (enforced by the deliverable service)
+  "submit_deliverable", // own assigned tasks only
+  "create_deliverable_version", // own assigned tasks only
   "view_project_members",
   "view_project_resources",
   "view_document",
@@ -220,6 +233,9 @@ const COLLABORATOR_ACTIONS = Object.freeze([
   "submit_task", // worker transitions: assignee-only (IN_PROGRESS → SUBMITTED)
   "view_deliverable",
   "upload_deliverable", // restricted to deliverables of the user's assigned tasks
+  "create_deliverable", // own assigned tasks only (enforced by the deliverable service)
+  "submit_deliverable", // own assigned tasks only
+  "create_deliverable_version", // own assigned tasks only
   "view_project_members",
   "view_project_resources",
   "view_document",

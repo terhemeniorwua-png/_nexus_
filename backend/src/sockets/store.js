@@ -8,4 +8,7 @@ function getIO() {
   return io;
 }
 
-module.exports = { setIO, getIO };
+// Shared room naming so controllers and sockets agree on one convention.
+const boardRoom = (projectId) => `board:${String(projectId)}`;
+
+module.exports = { setIO, getIO, boardRoom };

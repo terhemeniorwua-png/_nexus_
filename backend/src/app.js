@@ -16,6 +16,7 @@ const activityRoutes = require("./routes/activity.route");
 const overviewRoutes = require("./routes/overview.route");
 const projectMemberRoutes = require("./routes/projectMember.route");
 const deliverableRoutes = require("./routes/deliverable.route");
+const deliverableGlobalRoutes = require("./routes/deliverableGlobal.route");
 const projectResourceRoutes = require("./routes/projectResource.route");
 const taskRoutes = require("./routes/task.route");
 const { notFoundHandler, errorHandler } = require("./middleware/errorHandler");
@@ -51,6 +52,10 @@ app.use("/api/workspaces/:workspaceId/messages", messageRoutes);
 app.use("/api/workspaces/:workspaceId/activity", activityRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/me", overviewRoutes);
+
+// Phase 12 deliverable lifecycle. Registered before the generic /api task
+// routes so `/api/deliverables/...` is not swallowed by them.
+app.use("/api/deliverables", deliverableGlobalRoutes);
 
 app.patch("/api/tasks/reorder", authenticate, reorderTask);
 

@@ -2,15 +2,15 @@
 
 const mongoose = require("mongoose");
 const Task = require("../models/task.model");
-const Deliverable = require("../models/deliverable.model");
-const Review = require("../models/review.model");
+
 const Comment = require("../models/comment.model");
 const { ApiError } = require("../middleware/errorHandler");
 const { hasProjectPermission } = require("../permissions/permissions");
 const { recordActivity } = require("../services/activity.service");
 const { createNotification } = require("../services/notification.service");
 const { reindexColumn } = require("../services/board.service");
-const { getIO } = require("../sockets/store");
+const { deleteTaskDeliverables } = require("../services/deliverableCascade.service");
+const { getIO, boardRoom } = require("../sockets/store");
 const {
   assertStatusTransition,
   assertAssigneeInProject,
@@ -23,7 +23,6 @@ const {
   coerceTagArray,
   coerceOptionalDate,
 } = require("../services/task.service");
-const { boardRoom } = require("./board.controller");
 const {
   assertWeightTotalWithinLimit,
   assertSubtasksCompleteForApproval,
@@ -206,13 +205,9 @@ async function deleteTask(req, res, next) {
   try {
     const task = req.task;
 
-    // Cascade: deliverables of the task, reviews of those deliverables, and
-    // comments on the task. Subtasks are embedded so they die with the task.
-    const deliverables = await Deliverable.find({ taskId: task._id }).distinct("_id");
-    if (deliverables.length) {
-      await Review.deleteMany({ deliverableId: { $in: deliverables } });
-      await Deliverable.deleteMany({ _id: { $in: deliverables } });
-    }
+    // Cascade: the task's deliverable aggregate (versions + reviews) and its
+    // comments. Subtasks are embedded so they die with the task.
+    await deleteTaskDeliverables(task._id);
     await Comment.deleteMany({ taskId: task._id });
 
     await Task.deleteOne({ _id: task._id });

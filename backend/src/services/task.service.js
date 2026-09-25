@@ -9,7 +9,11 @@ const BoardColumn = require("../models/boardColumn.model");
 const { ensureDefaultColumns } = require("./board.service");
 const { hasProjectPermission } = require("../permissions/permissions");
 const { ApiError } = require("../middleware/errorHandler");
-const { taskProgress, subtaskWeightSummary } = require("./progress.service");
+const {
+  taskProgress,
+  subtaskWeightSummary,
+  assertSubtasksCompleteForApproval,
+} = require("./progress.service");
 
 const {
   WORKFLOW_STATUSES,
@@ -118,6 +122,83 @@ async function assertStatusTransition({ task, toStatus, user, projectRole }) {
   }
 
   return { allowed: true, permission: rule.permission, worker: rule.worker };
+}
+
+/**
+ * Deliverable-aware task states (Phase 12).
+ *
+ * A task and its deliverable share one state machine: the task's review phase
+ * always mirrors the current deliverable version. This map is what makes
+ * "Task = APPROVED while Deliverable = CHANGES_REQUESTED" impossible (§33) —
+ * both the task status endpoint and the deliverable service consult it.
+ */
+const DELIVERABLE_COMPATIBLE_STATUSES = {
+  ASSIGNED: [],
+  IN_PROGRESS: ["DRAFT", "CHANGES_REQUESTED"],
+  SUBMITTED: ["SUBMITTED"],
+  UNDER_REVIEW: ["UNDER_REVIEW"],
+  CHANGES_REQUESTED: ["CHANGES_REQUESTED"],
+  APPROVED: ["APPROVED"],
+};
+
+/**
+ * Reject a task move that would contradict the task's deliverable. `source:
+ * "deliverable"` means the deliverable workflow itself is driving this change,
+ * so the check is skipped (it updates both records in one unit of work).
+ */
+function assertTaskDeliverableConsistency({ deliverable, toStatus, source = "task" }) {
+  if (!deliverable) return;
+  if (source === "deliverable") return;
+
+  const allowed = DELIVERABLE_COMPATIBLE_STATUSES[toStatus] || [];
+  if (allowed.includes(deliverable.status)) return;
+
+  const hint = allowed.length
+    ? `Resolve the open deliverable (currently ${deliverable.status}) first`
+    : "Remove the task's deliverable before moving it back to Assigned";
+
+  throw new ApiError(
+    400,
+    `Cannot move the task to ${toStatus} while its deliverable is ${deliverable.status}. ${hint}.`
+  );
+}
+
+/**
+ * Apply a workflow transition once it has been authorized. Shared by the HTTP
+ * status endpoint (Phase 10) and the deliverable service (Phase 12) so the two
+ * paths can never drift, and so the Phase 11 approval precondition applies to
+ * both.
+ */
+async function transitionTaskStatus({
+  task,
+  toStatus,
+  user,
+  projectRole,
+  session = null,
+  deliverable = null,
+  source = "task",
+  requireCompleteSubtasks = true,
+}) {
+  await assertStatusTransition({ task, toStatus, user, projectRole });
+
+  // Phase 11: approval is the task's completion state, so it requires the work
+  // to be done. An APPROVED task with open subtasks would report progress
+  // < 100 and contradict itself.
+  if (toStatus === "APPROVED" && requireCompleteSubtasks) {
+    assertSubtasksCompleteForApproval(task);
+  }
+
+  assertTaskDeliverableConsistency({ deliverable, toStatus, source });
+
+  const fromStatus = task.status;
+  task.status = toStatus;
+  if (session) {
+    await task.save({ session });
+  } else {
+    await task.save();
+  }
+
+  return { task, fromStatus, toStatus };
 }
 
 /**
@@ -422,6 +503,9 @@ module.exports = {
   LEGACY_STATUS_TO_WORKFLOW,
   isWorkflowStatus,
   canTransition,
+  transitionTaskStatus,
+  assertTaskDeliverableConsistency,
+  DELIVERABLE_COMPATIBLE_STATUSES,
   normalizePriority,
   coerceTagArray,
   coerceOptionalDate,

@@ -1,7 +1,6 @@
 const Task = require("../models/task.model");
 const BoardColumn = require("../models/boardColumn.model");
-const Deliverable = require("../models/deliverable.model");
-const Review = require("../models/review.model");
+
 const Comment = require("../models/comment.model");
 const WorkspaceMember = require("../models/workspaceMember.model");
 const mongoose = require("mongoose");
@@ -320,13 +319,9 @@ async function deleteTask(req, res, next) {
     const task = await Task.findById(req.params.taskId);
     if (!task) return next(new ApiError(404, "Task not found"));
 
-    // Cascade: deliverables of the task, reviews of those deliverables, and
-    // comments on the task. Subtasks are embedded so they die with the task.
-    const deliverables = await Deliverable.find({ taskId: task._id }).distinct("_id");
-    if (deliverables.length) {
-      await Review.deleteMany({ deliverableId: { $in: deliverables } });
-      await Deliverable.deleteMany({ _id: { $in: deliverables } });
-    }
+    // Cascade: the task's deliverable aggregate (versions + reviews) and its
+    // comments. Subtasks are embedded so they die with the task.
+    await deleteTaskDeliverables(task._id);
     await Comment.deleteMany({ taskId: task._id });
 
     await Task.deleteOne({ _id: task._id });

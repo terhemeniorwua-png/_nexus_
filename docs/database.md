@@ -200,9 +200,15 @@ Existing board support: a column belongs to a `project` and orders tasks horizon
 | `status`     | String  | Enum `TODO`, `IN_PROGRESS`, `COMPLETED`, default `TODO` |
 | `assigneeId` | ObjectId | FK → users, nullable; must be a project member / manager / workspace owner |
 | `dueDate`    | Date    | Nullable                               |
-| `weight`     | Number  | Per-subtask percentage contribution, `0–100`, default `0`. Sum-to-100 is enforced in the service layer (documented in [Assumptions](#assumptions)). |
+| `weight`     | Number  | Per-subtask percentage contribution, `0–100`, default `0`. The combined total on one task may never exceed `100`; it is checked in the service layer, not the schema (documented in [Assumptions](#assumptions)). |
 
-Task `progress` is derived server-side as the percentage of `COMPLETED` subtasks (`null` when a task has none) — it is not persisted.
+**Progress is never stored.** Neither `tasks.progress` nor `projects.progress` exists as a field, so there is no denormalized value to migrate, re-sync, or let drift out of date. The API derives every figure from the records above:
+
+- A task **with** weighted subtasks reports the sum of the weights of its `COMPLETED` subtasks, verbatim — no normalization. A task whose weights total `0` (a legacy checklist) falls back to the percentage of subtask *count* completed.
+- A task **without** subtasks reports `100` when its status is `APPROVED` (legacy `DONE` too) and `0` in every other state, including `SUBMITTED` and `UNDER_REVIEW`.
+- A project reports the unweighted average of its tasks' progress, rounded to the nearest integer; an empty project reports `0`.
+
+The single source of truth is `backend/src/services/progress.service.js`; see [docs/tasks.md §3.1](tasks.md#31-progress) for the full rules.
 
 ### deliverables
 
@@ -437,7 +443,7 @@ npm run db:seed
 - 1 workspace, 7 users (bcrypt-hashed `Password123!`), 7 workspace memberships
 - 4 teams, 10 team memberships
 - 7 projects, 13 project memberships
-- 5 project resources, 12 board columns, **17 tasks** (13 Phase-10 workflow tasks across *every* state — `ASSIGNED`, `IN_PROGRESS`, `SUBMITTED`, `UNDER_REVIEW`, `CHANGES_REQUESTED`, `APPROVED` — plus 4 legacy-status board tasks, all with weighted subtasks)
+- 5 project resources, 12 board columns, **17 tasks** (13 Phase-10 workflow tasks across *every* state — `ASSIGNED`, `IN_PROGRESS`, `SUBMITTED`, `UNDER_REVIEW`, `CHANGES_REQUESTED`, `APPROVED` — plus 4 legacy-status board tasks, all with weighted subtasks, each seeded task allocating exactly `100` points so the demo exercises every branch of the progress formula)
 - 1 deliverable, 1 review, 3 comments
 - 7 notifications (incl. `TASK_ASSIGNED` + `TASK_STATUS_CHANGED`), 7 activity logs (incl. `TASK_STARTED` / `TASK_COMPLETED` / `TASK_UPDATED`)
 - 1 conversation, 2 members, 3 messages
@@ -473,7 +479,7 @@ The database scripts only need `MONGO_URI`. `JWT_SECRET`, `SALT_ROUNDS`, `PORT`,
 ## Assumptions
 
 1. **MongoDB, not PostgreSQL** — per the repository's existing Mongo/Mongoose setup and confirmed decision, the schema is expressed as Mongoose models rather than SQL DDL. Enums are enforced with Mongoose `enum`; uniqueness with unique indexes.
-2. **Subtasks are embedded** inside tasks (the existing board model stores them that way). `weight` was added to each embedded subtask; the “weights total 100%” rule is enforced in the service layer rather than the schema.
+2. **Subtasks are embedded** inside tasks (the existing board model stores them that way). `weight` was added to each embedded subtask; the combined weight on a task may never exceed `100`, and the rule is enforced in the service layer rather than the schema. Under-allocation is allowed (weights can be added incrementally) and nothing is normalized away — completing a subtask contributes its own weight, so a task with only `70` points allocated can never report more than `70%`. Progress itself is pure computation and is never persisted (see [Subtasks](#subtasks-embedded)).
 3. **Project retains `workspaceId`** alongside the new `teamId`, and tasks retain `columnId`, to avoid breaking the existing board/workspace controllers.
 4. **Existing enum values kept** — task statuses/priorities and notification types extend the existing sets rather than replacing them, preserving current API behavior.
 5. **`channelId` on messages is now optional**; a message may target a `conversationId` instead.

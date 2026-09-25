@@ -17,7 +17,10 @@ const {
   handleMoveTask,
 } = require("../controllers/board.controller");
 const { listComments, addComment, deleteComment } = require("../controllers/comment.controller");
-const { submitDeliverable } = require("../controllers/deliverable.controller");
+const { createDeliverable } = require("../controllers/deliverable.controller");
+const { createDeliverableUpload, handleUploadError } = require("../middleware/upload");
+
+const deliverableUpload = createDeliverableUpload("file");
 
 const router = express.Router({ mergeParams: true });
 
@@ -39,12 +42,17 @@ router.post(
   handleMoveTask
 );
 
-// Deliverable submission for a specific task (task ownership enforced).
+// Deliverable submission for a specific task. Project-scoped alias of the
+// canonical `POST /api/tasks/:taskId/deliverables` (Phase 12): same service,
+// same ownership rule, same multipart body. Ownership is enforced in the
+// deliverable service, which knows about the assignee, the creator and
+// `assign_task` holders in one place.
 router.post(
   "/tasks/:taskId/deliverables",
-  requireProjectPermission("upload_deliverable"),
-  taskOwnership,
-  submitDeliverable
+  requireProjectPermission("create_deliverable"),
+  deliverableUpload,
+  handleUploadError,
+  createDeliverable
 );
 
 router.get("/tasks/:taskId/comments", requireProjectPermission("view_task"), listComments);

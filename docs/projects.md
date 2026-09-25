@@ -49,10 +49,10 @@ Delete removes the project plus its tasks, board columns, project memberships, a
 
 | Method | Route | Notes |
 | --- | --- | --- |
-| `GET` | `/api/projects` | Accessible projects across all the user's workspaces, enriched with team/workspace/manager + task/member stats. `?status=`, `?priority=`, `?teamId=` filters apply on top of the authorized set (invalid values → 400). |
+| `GET` | `/api/projects` | Accessible projects across all the user's workspaces, enriched with team/workspace/manager + task/member stats **and the server-computed `progress`**. `?status=`, `?priority=`, `?teamId=` filters apply on top of the authorized set (invalid values → 400). |
 | `GET` | `/api/projects/meta` | Create form data: workspaces the user may create in (owner/`Admin`/`Member`) → teams → eligible managers. A `Viewer` gets `[]`. |
 | `POST` | `/api/projects` | Create (see above). |
-| `GET` | `/api/projects/:projectId` | Detail enriched with team, workspace, manager, and the full member list with roles. 403 when the user has no role on the project. |
+| `GET` | `/api/projects/:projectId` | Detail enriched with team, workspace, manager, the full member list with roles, and the same `stats` block (including `progress`). 403 when the user has no role on the project. |
 | `PATCH` | `/api/projects/:projectId` | Update + validation (see above). |
 | `DELETE` | `/api/projects/:projectId` | Hard delete + cascade (owner/admin only). |
 | `GET` | `/api/projects/:projectId/members` | List project members with roles (`view_project_members`). |
@@ -73,16 +73,30 @@ Frontend: the project detail page's **Members** panel offers an **Add** button (
 
 ## Frontend
 
-- `app/projects` — grid of accessible projects with workspace chip, status/priority badges, manager + team, due date, member count, and a task-progress bar. **Status / priority filters** drive `?status=` / `?priority=` query params (client-side, server-authorized). Empty states for "no projects" and "no filter matches", plus a **New project** action only when `/projects/meta` returns a create-eligible workspace.
+- `app/projects` — grid of accessible projects with workspace chip, status/priority badges, manager + team, due date, member count, and the server-provided `stats.progress` bar (`ProgressBar`; the page no longer counts done/total tasks itself). **Status / priority filters** drive `?status=` / `?priority=` query params (client-side, server-authorized). Empty states for "no projects" and "no filter matches", plus a **New project** action only when `/projects/meta` returns a create-eligible workspace.
 - `app/projects/new` — create form backed by `/projects/meta`: team select grouped by workspace, manager select filtered to the chosen team's workspace (owner/admin/member only), start/due dates, priority.
-- `app/projects/[projectId]` — detail with stat cards (members/tasks/done/due date), members list (manager pinned first with role badges), **member management** (Add modal, inline role select, remove confirmation — see "Project members" above), a Tasks section ("No tasks have been created yet." + **All tasks** link into the Phase-10 task list + **Open board** link to `/workspaces/[workspaceId]/projects/[projectId]/board`), an **Edit** modal (status field included) gated to `update_project`, and a **Delete** confirmation modal gated to `delete_project`. 403 renders a "Private project" state; unknown ids render a "Project not found" state.
-- `app/projects/[projectId]/tasks` — Phase-10 task list: search + priority/assignee filters, status tabs over the full workflow (labels from `TASK_STATUS_META`, zero-count tabs hidden), rows with status/priority badges, due-date + overdue chip, subtask progress, and assignee avatar; a **New task** modal (`TaskFormModal`) gated to managers/owners/admins; rows link to the task detail.
-- `app/projects/[projectId]/tasks/[taskId]` — Phase-10 task detail: description, tags, meta cards (due/tags/progress/assignee), **Move task** action buttons driven by the workflow transitions (worker steps assignee-only, reviewer steps manager-only, "waiting on assignee" hint), subtasks list with progress bar + add/toggle/delete, Edit (`TaskFormModal`), Delete (confirm modal), and an "Open board" link.
-- Shared pieces: `components/workspace/ProjectForm.jsx` (create + edit, resets per open), `components/workspace/ProjectBadge.jsx` (status/priority pills), `components/workspace/TaskFormModal.jsx` (task create/edit), `PROJECT_STATUS_META` / `PROJECT_PRIORITY_META` / `TASK_STATUS_META` / `TASK_PRIORITY_META` in `lib/workspaceApi.js`, and a **Projects** link in `GlobalNav`.
+- `app/projects/[projectId]` — detail with stat cards (members/tasks/done/due date) plus the shared `ProgressBar` for `stats.progress`, members list (manager pinned first with role badges), **member management** (Add modal, inline role select, remove confirmation — see "Project members" above), a Tasks section ("No tasks have been created yet." + **All tasks** link into the Phase-10 task list + **Open board** link to `/workspaces/[workspaceId]/projects/[projectId]/board`), an **Edit** modal (status field included) gated to `update_project`, and a **Delete** confirmation modal gated to `delete_project`. 403 renders a "Private project" state; unknown ids render a "Project not found" state.
+- `app/projects/[projectId]/tasks` — task list (Phase 10 workflow, Phase 11 server progress): search + priority/assignee filters, status tabs over the full workflow (labels from `TASK_STATUS_META`, zero-count tabs hidden), rows with status/priority badges, due-date + overdue chip, the task's server `progress` bar, and assignee avatar; a **New task** modal (`TaskFormModal`) gated to managers/owners/admins; rows link to the task detail.
+- `app/projects/[projectId]/tasks/[taskId]` — task detail (Phase 10 workflow, Phase 11 weights): description, tags, meta cards (due/tags/progress/assignee), **Move task** action buttons driven by the workflow transitions (worker steps assignee-only, reviewer steps manager-only, "waiting on assignee" hint), subtasks list with the shared `ProgressBar`, per-subtask weight chips, a weight breakdown, and a `SubtaskComposer` weight field with live remaining-weight feedback, plus add/toggle/delete, Edit (`TaskFormModal`), Delete (confirm modal), and an "Open board" link.
+- `app/dashboard` — a **Project progress** section listing the workspace projects with their `stats.progress` bars, from `/api/me/overview` (no extra client math).
+- Shared pieces: `components/workspace/ProjectForm.jsx` (create + edit, resets per open), `components/workspace/ProjectBadge.jsx` (status/priority pills), `components/workspace/TaskFormModal.jsx` (task create/edit), `components/workspace/ProgressBar.jsx` (the only progress renderer), `PROJECT_STATUS_META` / `PROJECT_PRIORITY_META` / `TASK_STATUS_META` / `TASK_PRIORITY_META` in `lib/workspaceApi.js`, and a **Projects** link in `GlobalNav`.
 
 ## API payloads
 
-Project JSON returned by the global routes includes: `id`, `name`, `description`, `status`, `priority`, `startDate`, `dueDate`, `createdAt`/`updatedAt`, `role` (the requester's project role), `team: { id, name, workspaceId }`, `manager: { id, name, avatar }`, `workspace: { id, name }`, `stats: { taskCount, doneCount, memberCount }`, and (detail only) `members: [{ id, role, joinedAt, user: { id, name, email, avatar } }]`.
+Project JSON returned by the global routes includes: `id`, `name`, `description`, `status`, `priority`, `startDate`, `dueDate`, `createdAt`/`updatedAt`, `role` (the requester's project role), `team: { id, name, workspaceId }`, `manager: { id, name, avatar }`, `workspace: { id, name }`, `stats: { taskCount, doneCount, inProgressCount, underReviewCount, submittedCount, memberCount, progress }`, and (detail only) `members: [{ id, role, joinedAt, user: { id, name, email, avatar } }]`.
+
+`stats` is assembled by `computeProjectStats` in `backend/src/services/project.service.js` — one task query and one membership query for the whole batch, so listing 20 projects does not fan out into 20 round trips. The same function feeds the dashboard (`/api/me/overview`) and the project detail route, which is why those three surfaces can never disagree.
+
+### Project progress
+
+`stats.progress` is a **derived** integer `0–100` (Phase 11), never stored on the project document:
+
+- It is the unweighted average of the project's task progress, `Math.round`ed. Tasks count equally regardless of size or weight allocation.
+- An empty project reports `0`, not `null` — the same rule tasks follow, so consumers never branch on a missing value.
+- `progress` and `status` are independent: reaching `100%` does not mark the project `COMPLETED`, and a `COMPLETED` project may legitimately sit at `0%` if it was closed with nothing in it.
+- Because it is computed from the same service as task progress, the dashboard, the projects grid, the project detail header, and the task list always agree.
+
+Task-level progress (weighted subtasks, the `APPROVED` precondition, the `weights` payload) is documented in `docs/tasks.md` §3.1.
 
 Dates serialize as ISO strings; the API never returns raw Mongo `_id`s (each object uses `id`).
 
@@ -90,5 +104,6 @@ Dates serialize as ISO strings; the API never returns raw Mongo `_id`s (each obj
 
 - `backend/test/projects.test.js` — 39 tests against `nexus_projects_test`. Fixtures: workspace A (ada owner, alan admin, linus/margaret members, barbara viewer; engineering/research teams; "Nexus Platform Build" with alan PM + member rows) and workspace B (outsider owner, grace member + PM on "Other Project", ada also member). Covers every create/update validation branch, authorized list/filtering, team-filter authorization, id-manipulation isolation, manager handoff, the delete matrix, delete cascade, and `/meta`.
 - `backend/test/projectAccess.test.js` — 12 tests against `nexus_projectaccess_test` covering the Phase 9 access model (403 without a row, explicit + cross-team collaborators, isolation, duplicate 409, unauthorized manage 403, unknown user 404, cross-workspace 400, invalid role 400, unauthenticated 401, IDOR 403).
-- Full suite: **100 passing** (`cd backend && npm test`).
+- `backend/test/progress.test.js` — 35 tests against `nexus_progress_test` covering project averaging (via a deterministic one-task project → exactly `50%` when that task is at `50`, and `0%` for an empty project), the dashboard and board payloads, and the same authorization rules as above applied to progress.
+- Full suite: **152 passing** (`cd backend && npm test`); `npx next build` and `npx eslint src` clean.
 - `npm run db:seed` — now 7 projects / 13 project memberships (see `docs/authorization.md` §6 for the Phase 8 personas).

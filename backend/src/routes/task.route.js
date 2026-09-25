@@ -6,6 +6,8 @@ const {
   requireTaskOwnership,
   requireProjectPermission,
 } = require("../middleware/authorize");
+const { createDeliverableUpload, handleUploadError } = require("../middleware/upload");
+const { createDeliverable, getTaskDeliverable } = require("../controllers/deliverable.controller");
 const {
   getTask,
   updateTaskDetails,
@@ -68,6 +70,33 @@ router.post(
   requireProjectPermission("create_subtask"),
   requireTaskOwnership,
   createSubtask
+);
+
+// --- /api/tasks/:taskId/deliverables -----------------------------------------
+// The submission half of the Phase 12 workflow. The review half is reachable
+// from the deliverable routes, which is where the version lives.
+//
+// Ownership is enforced inside the deliverable service (assignee, creator, or
+// an `assign_task` holder) so the rule exists in one place rather than once
+// per route.
+const deliverableUpload = createDeliverableUpload("file");
+
+router.get(
+  "/tasks/:taskId/deliverable",
+  authenticate,
+  taskAccess,
+  requireProjectPermission("view_deliverable"),
+  getTaskDeliverable
+);
+
+router.post(
+  "/tasks/:taskId/deliverables",
+  authenticate,
+  taskAccess,
+  requireProjectPermission("create_deliverable"),
+  deliverableUpload,
+  handleUploadError,
+  createDeliverable
 );
 
 // --- /api/subtasks/:subtaskId ------------------------------------------------
