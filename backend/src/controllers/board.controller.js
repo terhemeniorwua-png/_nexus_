@@ -25,6 +25,7 @@ const {
 const { recordActivity } = require("../services/activity.service");
 const { createNotification } = require("../services/notification.service");
 const { getIO } = require("../sockets/store");
+const { taskProgress, assertWeightTotalWithinLimit, assertApprovedTaskStaysComplete } = require("../services/progress.service");
 
 const boardRoom = (projectId) => `board:${String(projectId)}`;
 
@@ -54,7 +55,12 @@ async function getBoardHandler(req, res, next) {
   try {
     await assertProjectInWorkspace(req, req.params.projectId);
     const { columns, tasks } = await getBoard(req.params.projectId);
-    res.json({ success: true, columns, tasks });
+    // Phase 11: expose the backend-computed progress on board cards.
+    const decorated = tasks.map((task) => ({
+      ...task.toJSON(),
+      progress: taskProgress(task),
+    }));
+    res.json({ success: true, columns, tasks: decorated });
   } catch (error) {
     next(error);
   }
@@ -164,10 +170,16 @@ async function createTask(req, res, next) {
           .filter((s) => s && String(s.title).trim())
           .map((s) => ({
             title: String(s.title).trim(),
+            // Phase 11: keep the canonical subtask status in step with the
+            // checkbox so progress reads from status, not from a stale flag.
+            status: s.completed ? "COMPLETED" : "TODO",
             completed: Boolean(s.completed),
             weight: Number(s.weight) > 0 ? Number(s.weight) : 0,
           }))
       : [];
+
+    // Phase 11: weights combined across a task may never exceed 100.
+    assertWeightTotalWithinLimit(cleanSubtasks);
 
     const task = await Task.create({
       projectId: project._id,
@@ -233,7 +245,23 @@ async function updateTask(req, res, next) {
     if (priority !== undefined) task.priority = normalizePriority(priority);
     if (dueDate !== undefined) task.dueDate = coerceOptionalDate(dueDate) || null;
     if (tags !== undefined) task.tags = coerceTagArray(tags) || [];
-    if (subtasks !== undefined) task.subtasks = Array.isArray(subtasks) ? subtasks : [];
+    if (subtasks !== undefined) {
+      const cleanSubtasks = Array.isArray(subtasks)
+        ? subtasks
+            .filter((s) => s && String(s.title || "").trim())
+            .map((s) => ({
+              title: String(s.title).trim(),
+              status: s.completed ? "COMPLETED" : "TODO",
+              completed: Boolean(s.completed),
+              weight: Number(s.weight) > 0 ? Number(s.weight) : 0,
+            }))
+        : [];
+      task.subtasks = cleanSubtasks;
+      // Phase 11: replacement subtasks must respect the combined weight ceiling.
+      assertWeightTotalWithinLimit(cleanSubtasks);
+      // ...and may not un-complete an already approved task.
+      assertApprovedTaskStaysComplete(task);
+    }
 
     // Status is governed exclusively by PATCH /api/tasks/:taskId/status —
     // generic updates never apply a status, which prevents workflow bypass

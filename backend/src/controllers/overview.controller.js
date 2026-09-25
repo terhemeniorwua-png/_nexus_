@@ -4,6 +4,7 @@ const Project = require("../models/project.model");
 const ProjectMember = require("../models/projectMember.model");
 const Task = require("../models/task.model");
 const { latestActivityAcross } = require("../services/activity.service");
+const { computeProjectStats } = require("../services/project.service");
 
 /**
  * Compute the user's accessible projects across all their workspaces.
@@ -75,6 +76,7 @@ async function getOverview(req, res, next) {
         success: true,
         overview: {
           workspaces: [],
+          projects: [],
           dueSoonTasks: [],
           overdueTasks: [],
           inProgressTasks: [],
@@ -167,10 +169,36 @@ async function getOverview(req, res, next) {
       })
     );
 
+    // Phase 11: per-project progress for the dashboard, from the same batched
+    // aggregation the project list/detail use (one Task read for all projects,
+    // never one query per project). No progress is recomputed here.
+    const projectStats = await computeProjectStats(projects.map((p) => p._id));
+
+    const projectRows = projects.map((project, index) => {
+      const stat = projectStats[index] || {};
+      return {
+        id: String(project._id),
+        name: project.name,
+        description: project.description || "",
+        status: project.status || "ACTIVE",
+        workspaceId: String(project.workspaceId),
+        workspaceName: workspaceName[String(project.workspaceId)] || "Unknown",
+        progress: stat.progress ?? 0,
+        stats: {
+          taskCount: stat.taskCount ?? 0,
+          doneCount: stat.doneCount ?? 0,
+          inProgressCount: stat.inProgressCount ?? 0,
+          underReviewCount: stat.underReviewCount ?? 0,
+          submittedCount: stat.submittedCount ?? 0,
+        },
+      };
+    });
+
     res.json({
       success: true,
       overview: {
         workspaces: workspaceRows,
+        projects: projectRows,
         dueSoonTasks: dueSoon,
         overdueTasks: overdue,
         inProgressTasks: inProgress,

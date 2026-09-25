@@ -10,6 +10,7 @@ import Avatar from "@/components/workspace/Avatar";
 import Modal from "@/components/workspace/Modal";
 import EmptyState from "@/components/workspace/EmptyState";
 import ProjectForm from "@/components/workspace/ProjectForm";
+import ProgressBar from "@/components/workspace/ProgressBar";
 import { ProjectStatusBadge, ProjectPriorityBadge } from "@/components/workspace/ProjectBadge";
 import { formatDate } from "@/lib/workspaceApi";
 
@@ -341,20 +342,15 @@ export default function ProjectDetailPage() {
             />
           ) : (
             <div className="ws-card rounded-2xl p-5">
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-[13.5px] text-zinc-300">
-                  {done} of {total} tasks done
-                </p>
-                <span className="text-[12px] font-semibold text-white">
-                  {total > 0 ? Math.round((done / total) * 100) : 0}%
-                </span>
-              </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-white/8">
-                <div
-                  className="h-full rounded-full bg-blue-500"
-                  style={{ width: `${total > 0 ? Math.round((done / total) * 100) : 0}%` }}
-                />
-              </div>
+              <ProgressBar
+                value={project.progress}
+                label="Project progress"
+                size="lg"
+                hint="Average of every task's calculated progress"
+              />
+              <p className="mt-3 text-[13.5px] text-zinc-300">
+                {done} of {total} tasks done
+              </p>
               <Link
                 href={`/workspaces/${project.workspace?.id}/projects/${project.id}/board`}
                 className="mt-5 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3.5 py-2 text-[13px] font-medium text-zinc-200 transition-colors hover:border-white/25 hover:text-white"

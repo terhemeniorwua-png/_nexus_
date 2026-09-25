@@ -15,6 +15,7 @@ const ProjectMember = require("../models/projectMember.model");
 const Task = require("../models/task.model");
 const Project = require("../models/project.model");
 const { ApiError } = require("../middleware/errorHandler");
+const { calculateProjectProgress } = require("./progress.service");
 
 const { STATUSES, PRIORITIES } = Project;
 
@@ -154,9 +155,9 @@ function safeStr(value) {
 }
 
 /**
- * Attach team/manager/workspace summaries and stats to a list of projects.
- * Bounded number of queries (3 lookups + per-project counts batched in
- * parallel) regardless of list size.
+ * Attach team/manager/workspace summaries, stats, and weighted progress to a
+ * list of projects. Bounded number of queries (3 relationship lookups + 2
+ * batched task/member reads) regardless of list size.
  */
 async function enrichProjects(projects) {
   if (!projects.length) return [];
@@ -175,21 +176,22 @@ async function enrichProjects(projects) {
   const managerById = new Map(managers.map((u) => [safeStr(u._id), u]));
   const workspaceById = new Map(workspaces.map((w) => [safeStr(w._id), w]));
 
-  const stats = await Promise.all(
-    projects.map(async (project) => {
-      const [taskCount, doneCount, memberCount] = await Promise.all([
-        Task.countDocuments({ projectId: project._id }),
-        Task.countDocuments({ projectId: project._id, status: "DONE" }),
-        ProjectMember.countDocuments({ projectId: project._id }),
-      ]);
-      return { taskCount, doneCount, memberCount };
-    })
-  );
+  const stats = await computeProjectStats(projects.map((p) => p._id));
+  const statsByProject = {};
+  projects.forEach((project, i) => {
+    statsByProject[safeStr(project._id)] = stats[i];
+  });
 
-  return projects.map((project, i) => {
+  return projects.map((project) => {
     const team = teamById.get(safeStr(project.teamId));
     const manager = managerById.get(safeStr(project.managerId));
     const workspace = workspaceById.get(safeStr(project.workspaceId));
+    const projectStats = statsByProject[safeStr(project._id)] || {
+      taskCount: 0,
+      doneCount: 0,
+      memberCount: 0,
+      progress: 0,
+    };
     return {
       ...project.toJSON(),
       role: project.role || null,
@@ -198,7 +200,62 @@ async function enrichProjects(projects) {
         : null,
       manager: manager ? { id: manager.id, name: manager.name, avatar: manager.avatar || "" } : null,
       workspace: workspace ? { id: workspace.id, name: workspace.name } : null,
-      stats: stats[i],
+      stats: {
+        taskCount: projectStats.taskCount,
+        doneCount: projectStats.doneCount,
+        memberCount: projectStats.memberCount,
+      },
+      progress: projectStats.progress,
+    };
+  });
+}
+
+/**
+ * Compute per-project task stats + weighted progress for a set of project ids.
+ * Bounded queries: one Task read + one ProjectMember read for the whole set
+ * (no per-project queries, regardless of list size). Returns one row per input
+ * id, aligned by index:
+ *   { taskCount, doneCount, memberCount, inProgressCount, underReviewCount, submittedCount, progress }
+ * `progress` follows the Phase 11 weighted model: the equal-weighted average of
+ * the project's tasks (0 when the project has no tasks). Every progress
+ * consumer (project list, project detail, dashboard overview) reads from here
+ * so they can never disagree.
+ */
+async function computeProjectStats(projectIds) {
+  const ids = (projectIds || []).map((id) => id);
+  if (ids.length === 0) return [];
+
+  const [tasks, memberRows] = await Promise.all([
+    Task.find({ projectId: { $in: ids } }).select("projectId status subtasks").lean(),
+    ProjectMember.find({ projectId: { $in: ids } }).select("projectId").lean(),
+  ]);
+
+  const tasksByProject = new Map();
+  ids.forEach((id) => tasksByProject.set(String(id), []));
+  tasks.forEach((task) => {
+    const key = String(task.projectId);
+    if (tasksByProject.has(key)) tasksByProject.get(key).push(task);
+  });
+
+  const memberCountByProject = new Map();
+  memberRows.forEach((m) => {
+    const key = String(m.projectId);
+    memberCountByProject.set(key, (memberCountByProject.get(key) || 0) + 1);
+  });
+
+  return ids.map((id) => {
+    const list = tasksByProject.get(String(id)) || [];
+    const countBy = (...statuses) =>
+      list.filter((t) => statuses.includes(String(t.status || "").toUpperCase())).length;
+    return {
+      taskCount: list.length,
+      // APPROVED (workflow) and the legacy DONE are both terminal.
+      doneCount: countBy("APPROVED", "DONE"),
+      inProgressCount: countBy("IN_PROGRESS", "IN PROGRESS"),
+      underReviewCount: countBy("UNDER_REVIEW", "REVIEW"),
+      submittedCount: countBy("SUBMITTED"),
+      memberCount: memberCountByProject.get(String(id)) || 0,
+      progress: calculateProjectProgress(list),
     };
   });
 }
@@ -234,5 +291,6 @@ module.exports = {
   assertEligibleManager,
   sanitizeProjectFields,
   enrichProjects,
+  computeProjectStats,
   getProjectMembers,
 };

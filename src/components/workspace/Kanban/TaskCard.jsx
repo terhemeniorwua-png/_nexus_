@@ -3,6 +3,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import Avatar from "../Avatar";
+import ProgressBar from "../ProgressBar";
 import { ClockIcon, FlagIcon, PlusIcon, CheckIcon } from "../icons";
 import { PRIORITY_COLORS, formatDate, isOverdue } from "@/lib/workspaceApi";
 
@@ -59,6 +60,12 @@ export default function TaskCard({ task, onOpen, columnName }) {
         <p className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-zinc-500">
           {task.description}
         </p>
+      )}
+
+      {task?.subtasks?.length > 0 && (
+        <div className="mt-2.5">
+          <ProgressBar value={task.progress} label="Progress" size="xs" />
+        </div>
       )}
 
       <div className="mt-3 flex items-center gap-1.5">

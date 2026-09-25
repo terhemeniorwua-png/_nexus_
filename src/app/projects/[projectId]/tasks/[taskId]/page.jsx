@@ -22,12 +22,14 @@ import {
 } from "@/components/workspace/icons";
 import { useResource, useMutation } from "@/hooks/useResource";
 import { useAuth } from "@/context/AuthContext";
+import ProgressBar from "@/components/workspace/ProgressBar";
 import {
   SUBTASK_STATUS_META,
   taskStatusMeta,
   taskPriorityMeta,
   isOverdue,
   formatDate,
+  formatWeight,
 } from "@/lib/workspaceApi";
 
 // Worker steps are assignee-only; reviewer steps need review/approve rights.
@@ -76,6 +78,7 @@ function SubtaskList({ subtasks, onToggle, onDelete, canManage }) {
     <div className="space-y-2">
       {subtasks.map((subtask) => {
         const meta = SUBTASK_STATUS_META[subtask.status] || SUBTASK_STATUS_META.TODO;
+        const weight = Number(subtask.weight) || 0;
         return (
           <div
             key={subtask.id}
@@ -106,6 +109,15 @@ function SubtaskList({ subtasks, onToggle, onDelete, canManage }) {
                 <p className="text-[11px] text-zinc-500">{formatDate(subtask.dueDate)}</p>
               )}
             </div>
+
+            {weight > 0 && (
+              <span
+                className="shrink-0 rounded-md border border-white/8 bg-white/5 px-1.5 py-0.5 text-[10.5px] font-semibold text-zinc-400"
+                title="Share of the task's progress this subtask carries"
+              >
+                {formatWeight(weight)}
+              </span>
+            )}
 
             <span
               className="shrink-0 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
@@ -139,28 +151,65 @@ function SubtaskList({ subtasks, onToggle, onDelete, canManage }) {
   );
 }
 
-function SubtaskComposer({ onAdd, members, busy }) {
+function SubtaskComposer({ onAdd, members, busy, weights }) {
   const [title, setTitle] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [weight, setWeight] = useState("");
+
+  // `weights` comes from the backend with the task; the pre-check below is
+  // only guidance — the server rejects an over-allocated task either way.
+  const allocated = Number(weights?.total) || 0;
+  const remaining = Math.max(0, Math.round((100 - allocated) * 100) / 100);
+  const parsedWeight = weight === "" ? 0 : Number(weight);
+  const invalidWeight = !Number.isFinite(parsedWeight) || parsedWeight < 0;
+  const projected = allocated + (invalidWeight ? 0 : parsedWeight);
+  const overBudget = !invalidWeight && projected > 100;
 
   const submit = (event) => {
     event.preventDefault();
-    if (!title.trim()) return;
-    onAdd({ title: title.trim(), assigneeId: assigneeId || null, dueDate: dueDate || null });
+    if (!title.trim() || invalidWeight || overBudget) return;
+    onAdd({
+      title: title.trim(),
+      assigneeId: assigneeId || null,
+      dueDate: dueDate || null,
+      weight: parsedWeight,
+    });
     setTitle("");
     setAssigneeId("");
     setDueDate("");
+    setWeight("");
   };
 
   return (
-    <form onSubmit={submit} className="mt-3 grid gap-2 rounded-xl border border-white/8 bg-white/[0.02] p-3 sm:grid-cols-[1fr_auto_auto_auto]">
+    <form
+      onSubmit={submit}
+      className="mt-3 grid gap-2 rounded-xl border border-white/8 bg-white/[0.02] p-3 sm:grid-cols-[1fr_88px_auto_auto_auto]"
+    >
       <input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="Add a subtask…"
         className="ws-input h-9 rounded-lg px-3 text-[13px]"
       />
+      <div className="relative">
+        <input
+          type="number"
+          min="0"
+          max="100"
+          step="any"
+          value={weight}
+          onChange={(e) => setWeight(e.target.value)}
+          placeholder={String(remaining)}
+          aria-label="Subtask weight (percent of the task)"
+          className={`ws-input h-9 w-full rounded-lg px-2.5 pr-6 text-[12.5px] ${
+            overBudget ? "border-red-400/60" : ""
+          }`}
+        />
+        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-zinc-500">
+          %
+        </span>
+      </div>
       <select
         value={assigneeId}
         onChange={(e) => setAssigneeId(e.target.value)}
@@ -183,11 +232,31 @@ function SubtaskComposer({ onAdd, members, busy }) {
       />
       <button
         type="submit"
-        disabled={busy || !title.trim()}
+        disabled={busy || !title.trim() || invalidWeight || overBudget}
         className="flex h-9 items-center gap-1.5 rounded-lg bg-white px-3 text-[12.5px] font-semibold text-zinc-950 transition-colors hover:bg-zinc-200 disabled:opacity-50"
       >
         <PlusIcon size={14} /> Add
       </button>
+
+      <p
+        className={`text-[11.5px] sm:col-span-full ${
+          overBudget ? "text-red-300" : invalidWeight ? "text-red-300" : "text-zinc-500"
+        }`}
+      >
+        {overBudget ? (
+          <>
+            Current weight allocation: {formatWeight(allocated)}% · new subtask weight:{" "}
+            {formatWeight(parsedWeight)}% · total {formatWeight(projected)}%. The total subtask
+            weight cannot exceed 100%.
+          </>
+        ) : invalidWeight ? (
+          "Weight must be a number between 0 and 100."
+        ) : (
+          <>
+            Current weight allocation: {formatWeight(allocated)}% · remaining: {formatWeight(remaining)}%
+          </>
+        )}
+      </p>
     </form>
   );
 }
@@ -356,7 +425,11 @@ export default function TaskDetailPage() {
   const overdue = isOverdue(task);
   const subtasks = task.subtasks || [];
   const completedCount = subtasks.filter((s) => s.completed).length;
-  const progress = task.progress;
+  // `task.progress` is always a number, computed by the backend from the
+  // completed weight of these subtasks (or, with no subtasks, from APPROVED).
+  const progress = task.progress ?? 0;
+  const weights = task.weights || { total: 0, remaining: 100, completedWeight: 0, isComplete: false };
+  const progressLabel = subtasks.length === 0 ? "No subtasks — progress follows the task status" : "Progress";
 
   return (
     <ProtectedRoute>
@@ -436,7 +509,11 @@ export default function TaskDetailPage() {
             <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <MetaRow icon={<CalendarIcon size={15} />} label="Due date" value={overdue ? `${formatDate(task.dueDate)} (overdue)` : formatDate(task.dueDate)} />
               <MetaRow icon={<TagIcon size={15} />} label="Priority" value={priority.label} />
-              <MetaRow icon={<CheckIcon size={15} />} label="Progress" value={progress === null ? "No subtasks" : `${progress}%`} />
+              <MetaRow
+                icon={<CheckIcon size={15} />}
+                label="Progress"
+                value={subtasks.length === 0 ? `${progress}% · no subtasks` : `${progress}%`}
+              />
               <div className="flex items-center gap-3 rounded-xl border border-white/8 bg-white/[0.03] px-3.5 py-2.5">
                 <Avatar name={task.assignee?.name} size={28} />
                 <div className="min-w-0">
@@ -495,26 +572,40 @@ export default function TaskDetailPage() {
               </div>
 
               <div className="ws-card rounded-2xl p-4">
-                {progress !== null && (
-                  <div className="mb-4">
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-white/8">
-                      <div className="h-full rounded-full bg-emerald-500" style={{ width: `${progress}%` }} />
-                    </div>
-                  </div>
+                <ProgressBar
+                  value={progress}
+                  label={progressLabel}
+                  size="md"
+                  tone="emerald"
+                  hint={
+                    subtasks.length > 0
+                      ? `${formatWeight(weights.completedWeight)} of ${formatWeight(weights.total)} allocated weight completed`
+                      : undefined
+                  }
+                />
+
+                {subtasks.length > 0 && (
+                  <p className="mt-2 text-[11.5px] text-zinc-500">
+                    {formatWeight(weights.completedWeight)}% of {formatWeight(weights.total)}% weighted
+                    work complete
+                    {weights.remaining > 0 && ` · ${formatWeight(weights.remaining)}% weight unallocated`}
+                  </p>
                 )}
 
-                {subtasks.length === 0 ? (
-                  <p className="py-6 text-center text-[13.5px] text-zinc-500">
-                    No subtasks yet{subtaskError ? "" : " — break this task into smaller pieces."}
-                  </p>
-                ) : (
-                  <SubtaskList
-                    subtasks={subtasks}
-                    onToggle={handleToggleSubtask}
-                    onDelete={handleDeleteSubtask}
-                    canManage={Boolean(canManage || isAssignee)}
-                  />
-                )}
+                <div className="mt-4">
+                  {subtasks.length === 0 ? (
+                    <p className="py-6 text-center text-[13.5px] text-zinc-500">
+                      No subtasks yet{subtaskError ? "" : " — break this task into smaller pieces."}
+                    </p>
+                  ) : (
+                    <SubtaskList
+                      subtasks={subtasks}
+                      onToggle={handleToggleSubtask}
+                      onDelete={handleDeleteSubtask}
+                      canManage={Boolean(canManage || isAssignee)}
+                    />
+                  )}
+                </div>
 
                 {subtaskError && (
                   <p className="mt-3 rounded-lg border border-red-400/25 bg-red-400/10 px-3 py-2 text-[12.5px] text-red-300" role="alert">
@@ -527,6 +618,7 @@ export default function TaskDetailPage() {
                     onAdd={handleAddSubtask}
                     members={members}
                     busy={subtaskBusy}
+                    weights={weights}
                   />
                 )}
               </div>

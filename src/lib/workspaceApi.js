@@ -140,3 +140,14 @@ export function isDueSoon(task) {
   const due = new Date(task.dueDate).getTime();
   return due >= Date.now() && due <= Date.now() + 7 * 24 * 60 * 60 * 1000;
 }
+
+/**
+ * Display helper for subtask weights (e.g. 20 -> "20%", 33.33 -> "33.33%").
+ * Weights arrive already validated by the backend; this only trims float
+ * noise so "20.00" is never shown.
+ */
+export function formatWeight(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "0";
+  return String(Math.round(n * 100) / 100);
+}

@@ -11,6 +11,7 @@ import { PlusIcon, GridIcon, BoardIcon, UsersIcon, ClockIcon } from "@/component
 import Avatar from "@/components/workspace/Avatar";
 import EmptyState from "@/components/workspace/EmptyState";
 import ActivityFeed from "@/components/workspace/ActivityFeed";
+import ProgressBar from "@/components/workspace/ProgressBar";
 import TaskItem from "@/components/workspace/TaskItem";
 import WorkspaceForm from "@/components/workspace/WorkspaceForm";
 import GlobalNav from "@/components/workspace/GlobalNav";
@@ -34,10 +35,23 @@ export default function DashboardPage() {
   const overdue = overview?.overdueTasks || [];
   const tasks = overview?.inProgressTasks || [];
   const workspaces = useMemo(() => overview?.workspaces || [], [overview]);
+  const projects = useMemo(() => overview?.projects || [], [overview]);
   const activity = overview?.recentActivity || [];
 
   const firstName = user?.name?.split(" ")[0] || "there";
   const workCount = new Set([...dueSoon, ...overdue, ...tasks].map((t) => t.id)).size;
+  const projectProgress = useMemo(
+    () => ({
+      active: projects.filter((p) => p.status !== "COMPLETED" && p.status !== "ARCHIVED").length,
+      tracked: projects.filter((p) => (p.stats?.taskCount || 0) > 0).length,
+      average: projects.length
+        ? Math.round(
+            projects.reduce((sum, p) => sum + (p.progress || 0), 0) / projects.length
+          )
+        : 0,
+    }),
+    [projects]
+  );
 
   const stats = useMemo(
     () => [
@@ -48,7 +62,6 @@ export default function DashboardPage() {
     ],
     [workspaces, workCount, dueSoon.length]
   );
-
   async function handleCreateWorkspace(form, runFn) {
     const { data: created, error } = await runFn("/workspaces", {
       method: "POST",
@@ -123,6 +136,77 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 ))}
+              </section>
+
+              <section className="mt-8">
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-[14px] font-semibold text-white">Project progress</h2>
+                  <div className="flex items-center gap-3 text-[12px] text-zinc-500">
+                    <span>
+                      {projectProgress.active} active · {projectProgress.tracked} with tasks
+                    </span>
+                    <Link href="/projects" className="transition-colors hover:text-white">
+                      View all
+                    </Link>
+                  </div>
+                </div>
+
+                {projects.length === 0 ? (
+                  <div className="ws-card rounded-2xl">
+                    <EmptyState
+                      icon={<BoardIcon size={18} />}
+                      title="No projects yet"
+                      description="Create a project to start tracking weighted progress."
+                      className="py-8"
+                      action={
+                        <Link
+                          href="/projects/new"
+                          className="rounded-lg bg-white px-3.5 py-2 text-[13px] font-semibold text-zinc-950 transition-colors hover:bg-zinc-200"
+                        >
+                          New project
+                        </Link>
+                      }
+                    />
+                  </div>
+                ) : (
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {projects.map((project) => {
+                      const projectStats = project.stats || {};
+                      const hasTasks = (projectStats.taskCount || 0) > 0;
+                      return (
+                        <Link
+                          key={project.id}
+                          href={`/projects/${project.id}`}
+                          className="ws-card group flex flex-col rounded-2xl p-4"
+                        >
+                          <p className="truncate text-[13.5px] font-semibold text-white">
+                            {project.name}
+                          </p>
+                          <p className="mt-0.5 truncate text-[11.5px] text-zinc-600">
+                            {project.workspaceName}
+                          </p>
+
+                          <div className="mt-3">
+                            <ProgressBar
+                              value={project.progress}
+                              label={hasTasks ? "Progress" : "No tasks yet"}
+                              size="sm"
+                              tone="purple"
+                              showValue={hasTasks}
+                              hint="Calculated from your tasks' completed work"
+                            />
+                          </div>
+
+                          <p className="mt-3 text-[11.5px] text-zinc-500">
+                            {projectStats.taskCount || 0} tasks · {projectStats.doneCount || 0} done ·{" "}
+                            {projectStats.inProgressCount || 0} in progress ·{" "}
+                            {projectStats.underReviewCount || 0} under review
+                          </p>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
               </section>
 
               <div className="mt-8 grid gap-6 lg:grid-cols-2">

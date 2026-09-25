@@ -311,9 +311,9 @@ async function runSeed() {
       dueDate: new Date("2026-04-01"),
       position: 0,
       subtasks: [
-        { title: "Research options", completed: true, weight: 20 },
-        { title: "Draft flows", completed: true, weight: 50 },
-        { title: "Write spec", completed: false, weight: 30 },
+        { title: "Research options", status: "COMPLETED", completed: true, weight: 20 },
+        { title: "Draft flows", status: "COMPLETED", completed: true, weight: 50 },
+        { title: "Write spec", status: "TODO", completed: false, weight: 30 },
       ],
       createdBy: alan,
     },
@@ -328,9 +328,9 @@ async function runSeed() {
       dueDate: new Date("2026-04-15"),
       position: 1,
       subtasks: [
-        { title: "Middleware", completed: true, weight: 40 },
-        { title: "Client auth payload", completed: true, weight: 40 },
-        { title: "Reconnect handling", completed: false, weight: 20 },
+        { title: "Middleware", status: "COMPLETED", completed: true, weight: 40 },
+        { title: "Client auth payload", status: "COMPLETED", completed: true, weight: 40 },
+        { title: "Reconnect handling", status: "TODO", completed: false, weight: 20 },
       ],
       createdBy: alan,
     },
@@ -374,9 +374,9 @@ async function runSeed() {
       dueDate: new Date("2026-09-30"),
       position: 4,
       subtasks: [
-        { title: "Outline sections", completed: false, weight: 25 },
-        { title: "Map legacy statuses", completed: false, weight: 45 },
-        { title: "Publish draft", completed: false, weight: 30 },
+        { title: "Outline sections", status: "TODO", completed: false, weight: 25 },
+        { title: "Map legacy statuses", status: "TODO", completed: false, weight: 45 },
+        { title: "Publish draft", status: "TODO", completed: false, weight: 30 },
       ],
       createdBy: alan,
     },
@@ -391,9 +391,9 @@ async function runSeed() {
       dueDate: new Date("2026-10-15"),
       position: 2,
       subtasks: [
-        { title: "Split routes", completed: true, weight: 40 },
-        { title: "Extract auth middleware", completed: true, weight: 35 },
-        { title: "Add permission guards", completed: false, weight: 25 },
+        { title: "Split routes", status: "COMPLETED", completed: true, weight: 40 },
+        { title: "Extract auth middleware", status: "COMPLETED", completed: true, weight: 35 },
+        { title: "Add permission guards", status: "TODO", completed: false, weight: 25 },
       ],
       createdBy: alan,
     },
@@ -421,9 +421,9 @@ async function runSeed() {
       dueDate: new Date("2026-10-20"),
       position: 6,
       subtasks: [
-        { title: "Research precedent", completed: true, weight: 20 },
-        { title: "Write policy draft", completed: true, weight: 50 },
-        { title: "Legal review", completed: false, weight: 30 },
+        { title: "Research precedent", status: "COMPLETED", completed: true, weight: 20 },
+        { title: "Write policy draft", status: "COMPLETED", completed: true, weight: 50 },
+        { title: "Legal review", status: "TODO", completed: false, weight: 30 },
       ],
       createdBy: alan,
     },
@@ -451,9 +451,9 @@ async function runSeed() {
       dueDate: new Date("2026-09-01"),
       position: 8,
       subtasks: [
-        { title: "Build fields", completed: true, weight: 30 },
-        { title: "Wire validation", completed: true, weight: 40 },
-        { title: "E2E tests", completed: true, weight: 30 },
+        { title: "Build fields", status: "COMPLETED", completed: true, weight: 30 },
+        { title: "Wire validation", status: "COMPLETED", completed: true, weight: 40 },
+        { title: "E2E tests", status: "COMPLETED", completed: true, weight: 30 },
       ],
       createdBy: alan,
     },
@@ -468,8 +468,8 @@ async function runSeed() {
       dueDate: new Date("2026-11-15"),
       position: 3,
       subtasks: [
-        { title: "Collect papers", completed: false, weight: 50 },
-        { title: "Tag findings", completed: false, weight: 50 },
+        { title: "Collect papers", status: "TODO", completed: false, weight: 50 },
+        { title: "Tag findings", status: "TODO", completed: false, weight: 50 },
       ],
       createdBy: ada,
     },
@@ -497,8 +497,8 @@ async function runSeed() {
       dueDate: new Date("2026-08-15"),
       position: 5,
       subtasks: [
-        { title: "Pick strata", completed: true, weight: 50 },
-        { title: "Size each stratum", completed: true, weight: 50 },
+        { title: "Pick strata", status: "COMPLETED", completed: true, weight: 50 },
+        { title: "Size each stratum", status: "COMPLETED", completed: true, weight: 50 },
       ],
       createdBy: ada,
     },
@@ -513,8 +513,8 @@ async function runSeed() {
       dueDate: new Date("2026-10-30"),
       position: 6,
       subtasks: [
-        { title: "Configure harness", completed: true, weight: 30 },
-        { title: "Run 10 models", completed: false, weight: 70 },
+        { title: "Configure harness", status: "COMPLETED", completed: true, weight: 30 },
+        { title: "Run 10 models", status: "TODO", completed: false, weight: 70 },
       ],
       createdBy: katherine,
     },
@@ -529,8 +529,8 @@ async function runSeed() {
       dueDate: new Date("2026-09-25"),
       position: 4,
       subtasks: [
-        { title: "Export list", completed: false, weight: 60 },
-        { title: "Note duplicates", completed: false, weight: 40 },
+        { title: "Export list", status: "TODO", completed: false, weight: 60 },
+        { title: "Note duplicates", status: "TODO", completed: false, weight: 40 },
       ],
       createdBy: grace,
     },
@@ -574,8 +574,21 @@ async function runSeed() {
     loginTask,
   ] = tasks.map((t) => t._id);
 
-  // Subtask weights are embedded per existing board model; total-to-100%
-  // is enforced in the service layer (documented in docs/database.md).
+  // Subtask weights are embedded per the existing board model and each task
+  // allocates exactly 100 points across its subtasks. Phase 11 derives progress
+  // from these records (nothing is stored), so the seeded data demonstrates
+  // every branch of the formula:
+  //
+  //   "Design authentication flow"  20 + 50 done of 100  ->  70%
+  //   "Refactor module router"      40 + 35 done of 100  ->  75%
+  //   "Ship login form UI"          30 + 40 + 30        ->  100% (APPROVED)
+  //   "Write onboarding ..."        none done           ->    0%
+  //   "Collect benchmark datasets"  no subtasks at all   ->    0%
+  //
+  // Project progress is then the average of its tasks' figures, e.g. the
+  // Platform project reports its own weighted mix rather than a hand-typed
+  // number. Weights are validated in the service layer (≤ 100 combined); see
+  // docs/database.md for the full rule.
 
   // ----------------------------------------------------------- DELIVERABLES
   const deliverable = await Deliverable.create({

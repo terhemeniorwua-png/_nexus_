@@ -9,6 +9,7 @@ const BoardColumn = require("../models/boardColumn.model");
 const { ensureDefaultColumns } = require("./board.service");
 const { hasProjectPermission } = require("../permissions/permissions");
 const { ApiError } = require("../middleware/errorHandler");
+const { taskProgress, subtaskWeightSummary } = require("./progress.service");
 
 const {
   WORKFLOW_STATUSES,
@@ -197,15 +198,6 @@ function getSubtaskStatusFromCompleted(completed) {
 }
 
 /**
- * Compute task progress (0–100) from its subtasks; null when there are none.
- */
-function computeProgress(subtasks = []) {
-  if (!subtasks.length) return null;
-  const completed = subtasks.filter((s) => s.status === "COMPLETED").length;
-  return Math.round((completed / subtasks.length) * 100);
-}
-
-/**
  * Build the enriched API representation of a task. Expects tasks where
  * `assignedTo` may be an ObjectId or a populated User doc.
  */
@@ -251,7 +243,11 @@ function serializeTask(task) {
     assignedTo: assigneeId,
     assignee,
     subtasks,
-    progress: computeProgress(raw.subtasks || []),
+    // Phase 11: `progress` is always a number (0-100) and is derived, never
+    // read from the request. `weights` lets the UI show the weight allocation
+    // (total / remaining) without recomputing anything.
+    progress: taskProgress(raw),
+    weights: subtaskWeightSummary(raw.subtasks || []),
     createdBy: raw.createdBy ? String(raw.createdBy) : null,
     createdAt: new Date(raw.createdAt || Date.now()).toISOString(),
   };
@@ -432,7 +428,6 @@ module.exports = {
   assertStatusTransition,
   assertAssigneeInProject,
   getAssignableUsers,
-  computeProgress,
   serializeTask,
   createTaskData,
   normalizeCreationStatus,

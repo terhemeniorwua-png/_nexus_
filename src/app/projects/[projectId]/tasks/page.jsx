@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/auth/RouteGuards";
 import GlobalNav from "@/components/workspace/GlobalNav";
 import EmptyState from "@/components/workspace/EmptyState";
 import Avatar from "@/components/workspace/Avatar";
+import ProgressBar from "@/components/workspace/ProgressBar";
 import TaskFormModal from "@/components/workspace/TaskFormModal";
 import {
   ArrowLeftIcon,
@@ -51,7 +52,7 @@ function TaskRow({ task }) {
   const overdue = isOverdue(task);
   const meta = taskStatusMeta(task.status);
   const priority = taskPriorityMeta(task.priority);
-  const subtaskDone = (task.subtasks || []).filter((s) => s.completed).length;
+  const subtaskCount = (task.subtasks || []).length;
 
   return (
     <Link
@@ -61,9 +62,9 @@ function TaskRow({ task }) {
       <div className="grid min-w-0 flex-1 gap-1.5">
         <div className="flex items-center gap-2">
           <p className="truncate text-[13.5px] font-medium text-zinc-100">{task.title}</p>
-          {subtaskDone > 0 && (
+          {subtaskCount > 0 && (
             <span className="flex shrink-0 items-center gap-1 text-[11px] text-zinc-500">
-              <CheckIcon size={11} /> {subtaskDone}/{task.subtasks.length}
+              <CheckIcon size={11} /> {subtaskCount} subtask{subtaskCount === 1 ? "" : "s"}
             </span>
           )}
         </div>
@@ -73,12 +74,13 @@ function TaskRow({ task }) {
               {tag}
             </span>
           ))}
-          {task.progress !== null && (
-            <span className="rounded-md border border-white/8 bg-white/5 px-1.5 py-0.5 text-[11px] text-zinc-500">
-              {task.progress}% complete
-            </span>
-          )}
         </div>
+        <ProgressBar
+          value={task.progress}
+          label="Progress"
+          size="xs"
+          className="mt-0.5 max-w-[240px] [&>div:first-child]:mb-1"
+        />
       </div>
 
       <Pill meta={meta} />

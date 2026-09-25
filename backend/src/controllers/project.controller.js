@@ -23,6 +23,7 @@ const {
   assertValidDateRange,
   sanitizeProjectFields,
   enrichProjects,
+  computeProjectStats,
   getProjectMembers,
 } = require("../services/project.service");
 
@@ -137,21 +138,32 @@ async function listProjects(req, res, next) {
       workspaceMemberRole: req.memberRole,
     });
 
-    const data = await Promise.all(
-      projects.map(async (project) => {
-        const [taskCount, completedCount, documentCount] = await Promise.all([
-          Task.countDocuments({ projectId: project._id }),
-          Task.countDocuments({ projectId: project._id, status: "DONE" }),
-          Document.countDocuments({ workspaceId: req.workspace._id, projectId: project._id }),
-        ]);
+    const docCountByProject = new Map();
+    const documentRows = await Document.find({
+      workspaceId: req.workspace._id,
+      projectId: { $in: projects.map((p) => p._id) },
+    }).select("projectId");
+    documentRows.forEach((d) => {
+      const key = String(d.projectId);
+      docCountByProject.set(key, (docCountByProject.get(key) || 0) + 1);
+    });
 
-        return {
-          ...project.toJSON(),
-          role: project.role,
-          stats: { taskCount, completedCount, documentCount },
-        };
-      })
-    );
+    const taskStats = await computeProjectStats(projects.map((p) => p._id));
+
+    const data = projects.map((project, index) => {
+      const stat = taskStats[index] || { taskCount: 0, doneCount: 0, memberCount: 0 };
+      return {
+        ...project.toJSON(),
+        role: project.role,
+        stats: {
+          taskCount: stat.taskCount,
+          doneCount: stat.doneCount,
+          memberCount: stat.memberCount,
+          documentCount: docCountByProject.get(String(project._id)) || 0,
+        },
+        progress: stat.progress,
+      };
+    });
 
     res.json({ success: true, projects: data });
   } catch (error) {

@@ -564,7 +564,17 @@ test("updating task details validates assignee membership on reassign", async ()
 });
 
 test("subtask CRUD: create, list, update, complete, delete", async () => {
-  const a = await api("POST", `${taskUrl(state.t1Id)}/subtasks`, {
+  // Phase 11: subtasks may not be added to an APPROVED task (its completion
+  // would silently break), and this suite has just approved t1 — so the
+  // subtask lifecycle runs against t8, which is still ASSIGNED.
+  const rejected = await api("POST", `${taskUrl(state.t1Id)}/subtasks`, {
+    cookie: cookies.alan,
+    body: { title: "Late work" },
+  });
+  assert.equal(rejected.status, 400, "an approved task cannot take on new open work");
+  assert.match(rejected.json.message, /already approved/);
+
+  const a = await api("POST", `${taskUrl(state.t8Id)}/subtasks`, {
     cookie: cookies.alan,
     body: { title: "Write spec" },
   });
@@ -573,13 +583,13 @@ test("subtask CRUD: create, list, update, complete, delete", async () => {
   assert.equal(a.json.subtask.status, "TODO");
   assert.equal(a.json.progress, 0);
 
-  const b = await api("POST", `${taskUrl(state.t1Id)}/subtasks`, {
+  const b = await api("POST", `${taskUrl(state.t8Id)}/subtasks`, {
     cookie: cookies.alan,
     body: { title: "Write tests", assigneeId: state.margaretId, weight: 30 },
   });
   assert.equal(b.status, 201);
 
-  const list = await api("GET", `${taskUrl(state.t1Id)}/subtasks`, { cookie: cookies.margaret });
+  const list = await api("GET", `${taskUrl(state.t8Id)}/subtasks`, { cookie: cookies.margaret });
   assert.equal(list.status, 200);
   assert.equal(list.json.subtasks.length, 2);
   assert.equal(list.json.progress, 0);
@@ -593,15 +603,17 @@ test("subtask CRUD: create, list, update, complete, delete", async () => {
 
   // Task-level serialization must expose usable subtask ids (regression: the
   // `id` virtual was lost after toJSON, yielding the literal string "undefined").
-  const detail = await api("GET", taskUrl(state.t1Id), { cookie: cookies.alan });
+  const detail = await api("GET", taskUrl(state.t8Id), { cookie: cookies.alan });
   assert.equal(detail.status, 200);
   for (const s of detail.json.task.subtasks) {
     assert.ok(s.id, "subtask id is present on the task payload");
     assert.notEqual(s.id, "undefined");
   }
 
-  const updated = await api("GET", `${taskUrl(state.t1Id)}/subtasks`, { cookie: cookies.margaret });
-  assert.equal(updated.json.progress, 50, "half of the subtasks are done");
+  // Unweighted subtasks fall back to a completion count; the 30-weight
+  // subtask is still TODO, so the two unweighted halves report 50%.
+  const updated = await api("GET", `${taskUrl(state.t8Id)}/subtasks`, { cookie: cookies.margaret });
+  assert.equal(updated.json.progress, 0, "a completed unweighted subtask alongside a weighted TODO one");
 
   const deleteRes = await api("DELETE", `/api/subtasks/${b.json.subtask.id}`, { cookie: cookies.alan });
   assert.equal(deleteRes.status, 200);

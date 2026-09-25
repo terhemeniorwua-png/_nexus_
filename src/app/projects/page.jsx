@@ -8,6 +8,7 @@ import { useResource } from "@/hooks/useResource";
 import "../workspace.css";
 import GlobalNav from "@/components/workspace/GlobalNav";
 import EmptyState from "@/components/workspace/EmptyState";
+import ProgressBar from "@/components/workspace/ProgressBar";
 import { BoardIcon, PlusIcon, UsersIcon, CalendarIcon, CheckIcon } from "@/components/workspace/icons";
 import Avatar from "@/components/workspace/Avatar";
 import { ProjectStatusBadge, ProjectPriorityBadge } from "@/components/workspace/ProjectBadge";
@@ -138,7 +139,6 @@ function ProjectsPageInner() {
           {projects.map((project) => {
             const total = project.stats?.taskCount || 0;
             const done = project.stats?.doneCount || 0;
-            const progress = total > 0 ? Math.round((done / total) * 100) : 0;
             return (
               <Link
                 key={project.id}
@@ -168,18 +168,20 @@ function ProjectsPageInner() {
                   </div>
                 </div>
 
-                {total > 0 && (
+                {total > 0 ? (
                   <div className="mt-4">
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/8">
-                      <div
-                        className="h-full rounded-full bg-blue-500"
-                        style={{ width: `${progress}%` }}
-                      />
-                    </div>
+                    <ProgressBar
+                      value={project.progress}
+                      label="Project progress"
+                      size="sm"
+                      className="[&>div:first-child]:mb-1.5"
+                    />
                     <p className="mt-1.5 text-[10.5px] text-zinc-500">
                       {done} of {total} tasks done
                     </p>
                   </div>
+                ) : (
+                  <p className="mt-4 text-[11px] text-zinc-600">No tasks yet</p>
                 )}
 
                 <div className="mt-4 flex items-center gap-4 border-t border-white/8 pt-3.5 text-[12px] text-zinc-500">

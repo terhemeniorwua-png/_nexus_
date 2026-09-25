@@ -19,12 +19,18 @@ const {
   findSubtaskIndex,
   validateSubtaskFields,
   serializeSubtask,
-  computeProgress,
   normalizePriority,
   coerceTagArray,
   coerceOptionalDate,
 } = require("../services/task.service");
 const { boardRoom } = require("./board.controller");
+const {
+  assertWeightTotalWithinLimit,
+  assertSubtasksCompleteForApproval,
+  assertApprovedTaskStaysComplete,
+  taskProgress,
+  subtaskWeightSummary,
+} = require("../services/progress.service");
 
 function taskLink(req, task) {
   return `/projects/${String(req.project._id)}/tasks/${String(task._id)}`;
@@ -240,6 +246,13 @@ async function changeTaskStatus(req, res, next) {
       projectRole: req.projectRole,
     });
 
+    // Phase 11: approval is the task's completion state, so it requires the
+    // work to be done. An APPROVED task with open subtasks would report
+    // progress < 100 and contradict itself.
+    if (toStatus === "APPROVED") {
+      assertSubtasksCompleteForApproval(task);
+    }
+
     const fromStatus = task.status;
     task.status = toStatus;
     await task.save();
@@ -284,7 +297,8 @@ async function listSubtasks(req, res, next) {
     res.json({
       success: true,
       subtasks: task.subtasks.map((s) => serializeSubtask(s)),
-      progress: computeProgress(task.subtasks),
+      progress: taskProgress(task),
+      weights: subtaskWeightSummary(task.subtasks),
     });
   } catch (error) {
     next(error);
@@ -310,6 +324,12 @@ async function createSubtask(req, res, next) {
       weight: fields.weight ?? 0,
     });
 
+    // Phase 11: a task's weights may never total more than 100.
+    assertWeightTotalWithinLimit(task.subtasks);
+
+    // Phase 11: a new TODO subtask would silently un-complete an approved task.
+    assertApprovedTaskStaysComplete(task);
+
     await task.save();
 
     const created = task.subtasks[task.subtasks.length - 1];
@@ -320,7 +340,8 @@ async function createSubtask(req, res, next) {
     res.status(201).json({
       success: true,
       subtask: serializeSubtask(created),
-      progress: computeProgress(task.subtasks),
+      progress: taskProgress(task),
+      weights: subtaskWeightSummary(task.subtasks),
     });
   } catch (error) {
     next(error);
@@ -360,6 +381,13 @@ async function updateSubtask(req, res, next) {
     }
 
     task.markModified("subtasks");
+
+    // Phase 11: an adjusted weight must keep the combined total ≤ 100.
+    assertWeightTotalWithinLimit(task.subtasks);
+
+    // Phase 11: an approved task must stay complete (see progress.service).
+    assertApprovedTaskStaysComplete(task);
+
     await task.save();
 
     await recordTaskActivity(req, task, "TASK_UPDATED", { subtask: subtask.title });
@@ -368,7 +396,8 @@ async function updateSubtask(req, res, next) {
     res.json({
       success: true,
       subtask: serializeSubtask(subtask),
-      progress: computeProgress(task.subtasks),
+      progress: taskProgress(task),
+      weights: subtaskWeightSummary(task.subtasks),
     });
   } catch (error) {
     next(error);
@@ -387,7 +416,12 @@ async function deleteSubtask(req, res, next) {
     await recordTaskActivity(req, task, "TASK_UPDATED", { removedSubtask: removed.title });
     await publishTaskEmit("task:updated", req, task);
 
-    res.json({ success: true, message: "Subtask deleted", progress: computeProgress(task.subtasks) });
+    res.json({
+      success: true,
+      message: "Subtask deleted",
+      progress: taskProgress(task),
+      weights: subtaskWeightSummary(task.subtasks),
+    });
   } catch (error) {
     next(error);
   }
