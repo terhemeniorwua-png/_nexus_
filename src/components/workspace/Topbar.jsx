@@ -5,13 +5,19 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { NexusLogo } from "@/components/NexusLogo";
 import { useNotifications } from "@/hooks/useNotifications";
-import { BellIcon, ArrowLeftIcon, LogOutIcon, SparkIcon } from "./icons";
+import { BellIcon, ArrowLeftIcon, LogOutIcon, SparkIcon, MenuIcon } from "./icons";
 import Avatar from "./Avatar";
 import { GlobalNavLinks } from "./GlobalNav";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { useRouter } from "next/navigation";
 
-export default function Topbar({ workspaceName, backHref = "/dashboard" }) {
+/**
+ * `onOpenNav` is optional on purpose. The workspace shell hides its sidebar
+ * below the md breakpoint, so it passes a handler to reopen it as a drawer;
+ * pages that have no hidden sidebar (notifications) simply omit it and get no
+ * hamburger, rather than a button that opens nothing.
+ */
+export default function Topbar({ workspaceName, backHref = "/dashboard", onOpenNav }) {
   const { user, logout } = useAuth();
   const { unreadCount } = useNotifications();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -31,6 +37,16 @@ export default function Topbar({ workspaceName, backHref = "/dashboard" }) {
   return (
     <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-[var(--header-bg)] px-4 backdrop-blur-md md:px-6">
       <div className="flex min-w-0 items-center gap-3">
+        {onOpenNav ? (
+          <button
+            type="button"
+            onClick={onOpenNav}
+            aria-label="Open navigation"
+            className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-300 transition-colors hover:bg-white/10 hover:text-white md:hidden"
+          >
+            <MenuIcon size={17} />
+          </button>
+        ) : null}
         <Link href={backHref} className="text-zinc-400 transition-colors hover:text-white" aria-label="Go back">
           <ArrowLeftIcon size={18} />
         </Link>
@@ -108,6 +124,13 @@ export default function Topbar({ workspaceName, backHref = "/dashboard" }) {
             </>
           )}
         </div>
+      </div>
+
+      {/* Below lg the horizontal nav has nowhere else to live. Same treatment as
+          GlobalNav's own header, so a phone or tablet is never left without a
+          way to move between the top-level sections. */}
+      <div className="overflow-x-auto border-t border-white/8 px-3 py-1.5 lg:hidden ws-scroll">
+        <GlobalNavLinks />
       </div>
     </header>
   );

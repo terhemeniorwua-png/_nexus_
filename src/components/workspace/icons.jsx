@@ -353,3 +353,15 @@ export function ArchiveIcon(props) {
     </Svg>
   );
 }
+
+// --- Phase 23 shell ----------------------------------------------------------
+// The workspace shell hides its sidebar below the md breakpoint, so the header
+// needs a way to open it again. Same hand-rolled set as the icons above.
+
+export function MenuIcon(props) {
+  return (
+    <Svg {...props}>
+      <path d="M4 6.5h16M4 12h16M4 17.5h16" {...stroke} />
+    </Svg>
+  );
+}
