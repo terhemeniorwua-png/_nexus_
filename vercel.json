@@ -10,7 +10,7 @@
       "root": "backend",
       "framework": "express",
       "runtime": "node",
-      "entrypoint": "server.js"
+      "entrypoint": "src/server.js"
     }
   },
   "rewrites": [
