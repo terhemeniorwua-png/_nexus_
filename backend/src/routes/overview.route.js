@@ -1,0 +1,20 @@
+const express = require("express");
+const { authenticate } = require("../middleware/authenticate");
+const { getOverview, getMyTasks } = require("../controllers/overview.controller");
+const { getDashboard } = require("../controllers/dashboard.controller");
+const { getManagerDashboard } = require("../controllers/managerDashboard.controller");
+
+const router = express.Router();
+
+router.get("/overview", authenticate, getOverview);
+router.get("/tasks", authenticate, getMyTasks);
+// Phase 20 dashboard. Mounted on the existing authenticated /api/me router
+// rather than a new /api/dashboard, because it is the same thing: the
+// authenticated user's own data, behind the same middleware.
+router.get("/dashboard", authenticate, getDashboard);
+// Phase 21 manager dashboard. Same reasoning, plus the manager check lives in
+// the controller because it depends on the user's project scope, not on a
+// single route parameter.
+router.get("/manager-dashboard", authenticate, getManagerDashboard);
+
+module.exports = router;
