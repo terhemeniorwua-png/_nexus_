@@ -88,6 +88,14 @@ export function ChevronLeftIcon(props) {
   );
 }
 
+export function ChevronRightIcon(props) {
+  return (
+    <Svg {...props}>
+      <path d="m9.5 6 6 6-6 6" {...stroke} />
+    </Svg>
+  );
+}
+
 export function TrashIcon(props) {
   return (
     <Svg {...props}>

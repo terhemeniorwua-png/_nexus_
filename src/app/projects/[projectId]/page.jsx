@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useResource, useMutation } from "@/hooks/useResource";
 import "../../workspace.css";
-import { ArrowLeftIcon, EditIcon, TrashIcon, BoardIcon, UsersIcon, CalendarIcon, CheckIcon, PlusIcon, ListTasksIcon, LinkIcon, ExternalLinkIcon, BookIcon } from "@/components/workspace/icons";
+import { ArrowLeftIcon, EditIcon, TrashIcon, BoardIcon, UsersIcon, CalendarIcon, CheckIcon, PlusIcon, ListTasksIcon, LinkIcon, ExternalLinkIcon, BookIcon, FileTextIcon } from "@/components/workspace/icons";
 import Avatar from "@/components/workspace/Avatar";
 import Modal from "@/components/workspace/Modal";
 import EmptyState from "@/components/workspace/EmptyState";
@@ -256,9 +256,10 @@ export default function ProjectDetailPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* The project is the natural place to reach its own knowledge base
-              and curated links; the workspace sidebar lists them too, but a
-              user who opened a project from the projects list has no sidebar. */}
+          {/* The project is the natural place to reach its own knowledge base,
+              curated links and submissions; the workspace sidebar lists the
+              first two too, but a user who opened a project from the projects
+              list has no sidebar. */}
           <Link
             href={`/workspaces/${project.workspace?.id}/projects/${project.id}/knowledge`}
             className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-[13px] font-medium text-zinc-200 transition-colors hover:border-white/25 hover:text-white"
@@ -270,6 +271,12 @@ export default function ProjectDetailPage() {
             className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-[13px] font-medium text-zinc-200 transition-colors hover:border-white/25 hover:text-white"
           >
             <LinkIcon size={15} /> Resources
+          </Link>
+          <Link
+            href={`/workspaces/${project.workspace?.id}/projects/${project.id}/submissions`}
+            className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-[13px] font-medium text-zinc-200 transition-colors hover:border-white/25 hover:text-white"
+          >
+            <FileTextIcon size={15} /> Submissions
           </Link>
           {canManage && (
             <button
