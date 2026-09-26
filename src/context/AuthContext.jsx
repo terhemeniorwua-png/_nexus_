@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { AUTH_ENDPOINTS, apiRequest } from "@/lib/api";
+import { AUTH_ENDPOINTS, SESSION_EXPIRED_EVENT, apiRequest } from "@/lib/api";
 import { connectSocket, disconnectSocket } from "@/lib/socket";
 
 const AuthContext = createContext(null);
@@ -110,6 +110,23 @@ export function AuthProvider({ children }) {
       setUser(null);
       setCapabilities(null);
     }
+  }, []);
+
+  // Phase 23 — the server can end a session that the browser still believes in
+  // (expiry, or a password change elsewhere). apiRequest announces it; here the
+  // app drops to the signed-out state and sends the person to the login page
+  // with a reason, rather than leaving a shell that fails on every click.
+  useEffect(() => {
+    function onSessionExpired() {
+      localStorage.removeItem("token");
+      localStorage.removeItem("accessToken");
+      disconnectSocket();
+      setUser(null);
+      setCapabilities(null);
+    }
+
+    window.addEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
   }, []);
 
   const value = useMemo(

@@ -7,11 +7,16 @@ const { ApiError } = require("../middleware/errorHandler");
 const { recordActivity } = require("../services/activity.service");
 const { createNotification } = require("../services/notification.service");
 
-function normalizeMember(member, user) {
+// Phase 23 — `isOwner` is here so the members table can leave the owner's role
+// and remove controls out. The API refuses both anyway ("Workspace owners must
+// remain admins" / "You cannot remove the workspace owner"), and a control that
+// can only ever fail is worse than no control.
+function normalizeMember(member, user, ownerId) {
   return {
     id: member.id,
     role: member.role,
     joinedAt: member.createdAt,
+    isOwner: ownerId ? String(member.userId) === String(ownerId) : false,
     user: user
       ? { id: user.id, name: user.name, email: user.email, avatar: user.avatar || "" }
       : { id: String(member.userId) },
@@ -83,7 +88,13 @@ async function createWorkspace(req, res, next) {
       success: true,
       workspace: workspace.toJSON(),
       role: "Admin",
-      members: [normalizeMember({ id: req.user._id, role: "Admin", createdAt: new Date(), userId: req.user._id }, req.user)],
+      members: [
+        normalizeMember(
+          { id: req.user._id, role: "Admin", createdAt: new Date(), userId: req.user._id },
+          req.user,
+          req.workspace?.ownerId
+        ),
+      ],
     });
   } catch (error) {
     next(error);
@@ -101,9 +112,15 @@ async function getWorkspace(req, res, next) {
     ]);
 
     const isOwner = String(req.workspace.ownerId) === String(req.user._id);
-    const memberRows = members.map((m) => normalizeMember(m, m.userId));
+    const memberRows = members.map((m) => normalizeMember(m, m.userId, req.workspace.ownerId));
     if (isOwner && !memberRows.some((r) => String(r.user.id) === String(req.user._id))) {
-      memberRows.unshift(normalizeMember({ id: req.user._id, role: "Admin", createdAt: new Date(), userId: req.user._id }, req.user));
+      memberRows.unshift(
+      normalizeMember(
+        { id: req.user._id, role: "Admin", createdAt: new Date(), userId: req.user._id },
+        req.user,
+        req.workspace.ownerId
+      )
+    );
     }
 
     res.json({
@@ -159,7 +176,10 @@ async function listMembers(req, res, next) {
       .populate("userId", "name email avatar")
       .sort({ createdAt: 1 });
 
-    res.json({ success: true, members: members.map((m) => normalizeMember(m, m.userId)) });
+    res.json({
+      success: true,
+      members: members.map((m) => normalizeMember(m, m.userId, req.workspace.ownerId)),
+    });
   } catch (error) {
     next(error);
   }
@@ -219,7 +239,7 @@ async function addMember(req, res, next) {
       link: `/workspaces/${req.workspace._id}`,
     });
 
-    res.status(201).json({ success: true, member: normalizeMember(member, user) });
+    res.status(201).json({ success: true, member: normalizeMember(member, user, req.workspace.ownerId) });
   } catch (error) {
     next(error);
   }
@@ -254,7 +274,10 @@ async function updateMemberRole(req, res, next) {
     member.role = role;
     await member.save();
 
-    res.json({ success: true, member: normalizeMember(member, targetUser || {}) });
+    res.json({
+      success: true,
+      member: normalizeMember(member, targetUser || {}, req.workspace.ownerId),
+    });
   } catch (error) {
     next(error);
   }
