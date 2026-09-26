@@ -43,6 +43,11 @@ const activitySchema = new mongoose.Schema(
         "DOCUMENT_CREATED",
         "DOCUMENT_UPDATED",
         "RESOURCE_ADDED",
+        // Phase 22 knowledge base lifecycle.
+        "KNOWLEDGE_ADDED",
+        "KNOWLEDGE_UPDATED",
+        "KNOWLEDGE_ARCHIVED",
+        "KNOWLEDGE_RESTORED",
         "MEMBERSHIP_UPDATED",
         "COMMENT_ADDED",
         "CHANNEL_JOINED",
@@ -55,7 +60,7 @@ const activitySchema = new mongoose.Schema(
     },
     targetType: {
       type: String,
-      enum: ["task", "project", "document", "member", "channel", "workspace", "comment", "subtask", "deliverable", "review", "resource", "team"],
+      enum: ["task", "project", "document", "member", "channel", "workspace", "comment", "subtask", "deliverable", "review", "resource", "team", "knowledgeResource"],
       default: "task",
     },
     targetId: {

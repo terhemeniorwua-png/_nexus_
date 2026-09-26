@@ -18,6 +18,7 @@ const Task = require("../models/task.model");
 const Deliverable = require("../models/deliverable.model");
 const DeliverableVersion = require("../models/deliverableVersion.model");
 const DeliverableReview = require("../models/deliverableReview.model");
+const KnowledgeResource = require("../models/knowledgeResource.model");
 const storage = require("../services/storage.service");
 const Comment = require("../models/comment.model");
 const Notification = require("../models/notification.model");
@@ -42,6 +43,7 @@ const MODELS = [
   Deliverable,
   DeliverableVersion,
   DeliverableReview,
+  KnowledgeResource,
   Comment,
   Notification,
   Activity,
@@ -268,6 +270,88 @@ async function runSeed() {
     { projectId: benchmarkProject, name: "ChatGPT", url: "https://chatgpt.com", category: "AI", description: "LLM playground", createdBy: katherine },
     { projectId: benchmarkProject, name: "Google Scholar", url: "https://scholar.google.com", category: "RESEARCH", description: "Academic search", createdBy: katherine },
     { projectId: designSystemProject, name: "Figma", url: "https://figma.com", category: "DESIGN", description: "Design collaboration", createdBy: grace },
+  ]);
+
+  // ------------------------------------------------------- KNOWLEDGE BASE
+  // Phase 22 — the curated examples a new project should not have to start
+  // empty. All MANUAL/curated: the promoted-from-approved-deliverable case is
+  // covered by the deliverable seeded above, which a reviewer can promote.
+  await KnowledgeResource.insertMany([
+    {
+      projectId: platformProject,
+      workspaceId: workspace._id,
+      title: "API Documentation",
+      description: "Endpoint reference for the Nexus API, including auth, pagination and error shapes.",
+      category: "DOCUMENTATION",
+      resourceType: "DOCUMENT",
+      status: "APPROVED",
+      sourceType: "MANUAL",
+      content:
+        "Authentication\n--\nEvery request carries the session cookie issued by POST /api/auth/login. Unauthenticated calls are refused with 401.\n\nPagination\n--\nList endpoints accept ?page and ?limit and return { items, total, page, limit }.\n\nErrors\n--\nFailures return { success: false, message } with a meaningful status code.",
+      createdBy: alan,
+      approvedBy: alan,
+      approvedAt: new Date(),
+    },
+    {
+      projectId: platformProject,
+      workspaceId: workspace._id,
+      title: "Research Report",
+      description: "Findings from the realtime transport evaluation that settled on Socket.IO.",
+      category: "RESEARCH",
+      resourceType: "REPORT",
+      status: "APPROVED",
+      sourceType: "MANUAL",
+      content:
+        "We compared Socket.IO, raw WebSockets and long polling against three requirements: presence at scale, offline replay, and a single auth handshake.\n\nSocket.IO was the only option that met all three without hand-rolling reconnection and room fan-out. The cost is an extra protocol layer, which the team accepted.",
+      createdBy: alan,
+      approvedBy: alan,
+      approvedAt: new Date(),
+    },
+    {
+      projectId: platformProject,
+      workspaceId: workspace._id,
+      title: "Architecture Document",
+      description: "How the platform is laid out: workspace, project, and the work lifecycle between them.",
+      category: "ARCHITECTURE",
+      resourceType: "DOCUMENT",
+      status: "APPROVED",
+      sourceType: "MANUAL",
+      content:
+        "A workspace owns teams, documents and messages. A project belongs to exactly one workspace and owns a board, deliverables and its knowledge base.\n\nWork lifecycle\n--\nTask -> Deliverable -> Submission -> Review -> APPROVED -> Knowledge Base. Only approved submissions can be promoted, so the knowledge base cannot accumulate unreviewed claims.",
+      createdBy: alan,
+      approvedBy: alan,
+      approvedAt: new Date(),
+    },
+    {
+      projectId: platformProject,
+      workspaceId: workspace._id,
+      title: "Testing Report",
+      description: "Coverage of the platform build, including the flows that are still manual.",
+      category: "TESTING",
+      resourceType: "REPORT",
+      status: "APPROVED",
+      sourceType: "MANUAL",
+      content:
+        "The API suite runs against a real MongoDB instance and asserts on the database, not on the response body alone.\n\nStill manual: the Socket.IO presence indicators and drag-and-drop behaviour, both of which need a browser runner the project does not have yet.",
+      createdBy: alan,
+      approvedBy: alan,
+      approvedAt: new Date(),
+    },
+    {
+      projectId: platformProject,
+      workspaceId: workspace._id,
+      title: "GitHub Repository",
+      description: "Source for the Nexus platform, including the backend API and this web client.",
+      category: "REPOSITORIES",
+      resourceType: "REPOSITORY",
+      status: "APPROVED",
+      // A repository is a link by nature, so it is recorded as an external one.
+      sourceType: "EXTERNAL_LINK",
+      url: "https://github.com/nexus/platform",
+      createdBy: alan,
+      approvedBy: alan,
+      approvedAt: new Date(),
+    },
   ]);
 
   // ------------------------------------------------------------ BOARD COLUMNS

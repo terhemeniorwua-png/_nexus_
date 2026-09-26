@@ -264,3 +264,92 @@ export function ListTasksIcon(props) {
     </Svg>
   );
 }
+// --- Phase 22 knowledge base -------------------------------------------------
+// Same hand-rolled set as the icons above, so the Knowledge Base uses the icon
+// language the product already speaks instead of a second library.
+
+export function BookIcon(props) {
+  return (
+    <Svg {...props}>
+      <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10a2.5 2.5 0 0 1 2 1 2.5 2.5 0 0 1 2-1h4.5A1.5 1.5 0 0 1 20 5.5v12a1.5 1.5 0 0 1-1.5 1.5H14a2.5 2.5 0 0 0-2 1 2.5 2.5 0 0 0-2-1H5.5A1.5 1.5 0 0 1 4 17.5Z" {...stroke} />
+      <path d="M12 5v14" {...stroke} />
+    </Svg>
+  );
+}
+
+export function FileTextIcon(props) {
+  return (
+    <Svg {...props}>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z" {...stroke} />
+      <path d="M14 3v5h5" {...stroke} />
+      <path d="M9 13h6M9 17h4" {...stroke} />
+    </Svg>
+  );
+}
+
+export function FileIcon(props) {
+  return (
+    <Svg {...props}>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z" {...stroke} />
+      <path d="M14 3v5h5" {...stroke} />
+    </Svg>
+  );
+}
+
+export function NetworkIcon(props) {
+  return (
+    <Svg {...props}>
+      <rect x="9" y="3" width="6" height="5" rx="1.2" {...stroke} />
+      <rect x="3" y="16" width="6" height="5" rx="1.2" {...stroke} />
+      <rect x="15" y="16" width="6" height="5" rx="1.2" {...stroke} />
+      <path d="M12 8v4M6 16v-2h12v2" {...stroke} />
+    </Svg>
+  );
+}
+
+export function FlaskIcon(props) {
+  return (
+    <Svg {...props}>
+      <path d="M10 3v6.2L4.8 18a2 2 0 0 0 1.7 3h11a2 2 0 0 0 1.7-3L14 9.2V3" {...stroke} />
+      <path d="M9 3h6" {...stroke} />
+      <path d="M7.4 15h9.2" {...stroke} />
+    </Svg>
+  );
+}
+
+export function GithubIcon(props) {
+  return (
+    <Svg {...props}>
+      <path d="M9 19c-4 1.4-4-2.2-6-2.7m12 5.2v-3.4a3 3 0 0 0-.8-2.3c2.7-.3 5.5-1.3 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.3 4.3 0 0 0-.1-3.2s-1-.3-3.4 1.3a11.6 11.6 0 0 0-6 0C6.5 3 5.5 3.3 5.5 3.3a4.3 4.3 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.8c0 4.6 2.8 5.6 5.5 6a3 3 0 0 0-.8 2.2V21" {...stroke} />
+    </Svg>
+  );
+}
+
+export function LinkIcon(props) {
+  return (
+    <Svg {...props}>
+      <path d="M10.5 13.5a4 4 0 0 0 5.7 0l2.8-2.8a4 4 0 0 0-5.7-5.7L11.7 6.6" {...stroke} />
+      <path d="M13.5 10.5a4 4 0 0 0-5.7 0L5 13.3a4 4 0 0 0 5.7 5.7l1.6-1.6" {...stroke} />
+    </Svg>
+  );
+}
+
+export function ExternalLinkIcon(props) {
+  return (
+    <Svg {...props}>
+      <path d="M14 4h6v6" {...stroke} />
+      <path d="M20 4 11 13" {...stroke} />
+      <path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" {...stroke} />
+    </Svg>
+  );
+}
+
+export function ArchiveIcon(props) {
+  return (
+    <Svg {...props}>
+      <rect x="3" y="4" width="18" height="4.5" rx="1.3" {...stroke} />
+      <path d="M5 8.5V19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5" {...stroke} />
+      <path d="M10 12.5h4" {...stroke} />
+    </Svg>
+  );
+}

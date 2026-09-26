@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import Link from "next/link";
 import EmptyState from "../EmptyState";
 import Modal from "../Modal";
-import { CheckIcon, ClockIcon, DocIcon, PlusIcon } from "../icons";
+import { BookIcon, CheckIcon, ClockIcon, DocIcon, PlusIcon } from "../icons";
 import { useMutation, useResource } from "@/hooks/useResource";
 import { useSocketEvent, useSocketResync } from "@/hooks/useSocket";
 import { SOCKET_EVENTS } from "@/lib/socketEvents";
@@ -18,6 +19,7 @@ import {
   formatFileSize,
   toApiPath,
 } from "@/lib/workspaceApi";
+import { KNOWLEDGE_ENDPOINTS } from "@/lib/knowledge";
 
 function StatusPill({ status }) {
   const meta = deliverableStatusMeta(status);
@@ -218,7 +220,15 @@ function UploadForm({ path, showTitle, submitImmediately, submitLabel, onDone, o
   );
 }
 
-export default function DeliverablePanel({ taskId, taskStatus, role, isAssignee, onChanged }) {
+export default function DeliverablePanel({
+  taskId,
+  taskStatus,
+  role,
+  isAssignee,
+  onChanged,
+  workspaceId,
+  projectId,
+}) {
   const { data, loading, refetch } = useResource(DELIVERABLE_ENDPOINTS.task(taskId), {
     enabled: Boolean(taskId),
   });
@@ -310,6 +320,25 @@ export default function DeliverablePanel({ taskId, taskStatus, role, isAssignee,
     setNotice(message);
     await refetch();
     onChanged?.();
+  };
+
+  // Phase 22 — promote an approved submission into the project knowledge base.
+  // The knowledge reference is read from the deliverable payload, so this panel
+  // renders what the database says rather than a local guess about whether the
+  // promotion already happened.
+  const knowledge = deliverable?.knowledge || null;
+  const knowledgeHref =
+    knowledge && workspaceId && projectId
+      ? `/workspaces/${workspaceId}/projects/${projectId}/knowledge/${knowledge.id}`
+      : null;
+
+  const addToKnowledge = async () => {
+    if (!deliverable || !workspaceId || !projectId) return;
+    const ok = await act(KNOWLEDGE_ENDPOINTS.fromDeliverable(workspaceId, projectId, deliverable.id), {
+      method: "POST",
+      success: "Added to the project knowledge base.",
+    });
+    if (ok) onChanged?.();
   };
 
   const busy = acting || loading;
@@ -480,6 +509,50 @@ export default function DeliverablePanel({ taskId, taskStatus, role, isAssignee,
                     />
                   ))}
               </ol>
+            )}
+
+            {/* Only an approved submission may become knowledge — the button is
+                shown to the same roles that can review, and the API enforces
+                the rule again regardless of what the client renders. */}
+            {status === "APPROVED" && (
+              <div className="mt-4 border-t border-white/8 pt-3.5">
+                {knowledge ? (
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-zinc-400">
+                    <span className="inline-flex items-center gap-1.5 text-emerald-400">
+                      <BookIcon size={14} /> Knowledge Base
+                    </span>
+                    <span aria-hidden="true">·</span>
+                    {knowledgeHref ? (
+                      <Link
+                        href={knowledgeHref}
+                        className="text-zinc-200 underline decoration-white/20 underline-offset-2 transition-colors hover:text-white hover:decoration-white/50"
+                      >
+                        {knowledge.title}
+                      </Link>
+                    ) : (
+                      <span className="text-zinc-200">{knowledge.title}</span>
+                    )}
+                    {knowledge.status === "ARCHIVED" && (
+                      <span className="rounded-md bg-white/5 px-1.5 py-0.5 text-[10.5px] text-zinc-400">
+                        Archived
+                      </span>
+                    )}
+                  </p>
+                ) : isReviewer ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={addToKnowledge}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-3.5 py-2 text-[12.5px] font-semibold text-emerald-300 transition-colors hover:bg-emerald-400/20 disabled:opacity-60"
+                  >
+                    <BookIcon size={14} /> Add to Knowledge Base
+                  </button>
+                ) : (
+                  <p className="text-[12.5px] text-zinc-500">
+                    Not in the knowledge base yet. A project manager can add it.
+                  </p>
+                )}
+              </div>
             )}
           </>
         )}

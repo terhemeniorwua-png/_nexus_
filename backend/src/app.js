@@ -20,6 +20,7 @@ const projectMemberRoutes = require("./routes/projectMember.route");
 const deliverableRoutes = require("./routes/deliverable.route");
 const deliverableGlobalRoutes = require("./routes/deliverableGlobal.route");
 const projectResourceRoutes = require("./routes/projectResource.route");
+const knowledgeRoutes = require("./routes/knowledge.route");
 const taskRoutes = require("./routes/task.route");
 const { notFoundHandler, errorHandler } = require("./middleware/errorHandler");
 
@@ -49,6 +50,8 @@ app.use("/api/workspaces/:workspaceId/projects/:projectId", boardRoutes);
 app.use("/api/workspaces/:workspaceId/projects/:projectId/members", projectMemberRoutes);
 app.use("/api/workspaces/:workspaceId/projects/:projectId/deliverables", deliverableRoutes);
 app.use("/api/workspaces/:workspaceId/projects/:projectId/resources", projectResourceRoutes);
+// Phase 22 knowledge base: approved work promoted into the project's record.
+app.use("/api/workspaces/:workspaceId/projects/:projectId/knowledge", knowledgeRoutes);
 app.use("/api/workspaces/:workspaceId/documents", documentRoutes);
 app.use("/api/workspaces/:workspaceId/messages", messageRoutes);
 // Phase 19 channel-scoped alias (spec §9). The workspace comes from the

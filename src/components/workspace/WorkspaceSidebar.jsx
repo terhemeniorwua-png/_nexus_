@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useResource } from "@/hooks/useResource";
 import { usePresence } from "@/hooks/usePresence";
 import Avatar from "./Avatar";
-import { GridIcon, BoardIcon, DocIcon, ChatIcon, SparkIcon, TeamIcon, UsersIcon } from "./icons";
+import { GridIcon, BoardIcon, BookIcon, DocIcon, ChatIcon, SparkIcon, TeamIcon, UsersIcon } from "./icons";
 
 function NavLink({ href, active, icon, label, badge }) {
   return (
@@ -77,8 +77,28 @@ export default function WorkspaceSidebar({ workspaceId, workspaceName, role }) {
             <NavLink
               key={project.id}
               href={href}
-              active={isActive(`/workspaces/${workspaceId}/projects/${project.id}`)}
+              // Scoped to the board itself: a project also owns a knowledge
+              // base, and one link must not light up for the other's pages.
+              active={pathname === href}
               icon={<BoardIcon size={16} />}
+              label={project.name}
+            />
+          );
+        })}
+
+        {/* One entry per project, mirroring the Boards list above, so the
+            knowledge base is reachable without a second project selector. */}
+        <p className="pt-4 pb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-zinc-600">
+          Knowledge
+        </p>
+        {projects.map((project) => {
+          const href = `/workspaces/${workspaceId}/projects/${project.id}/knowledge`;
+          return (
+            <NavLink
+              key={`knowledge-${project.id}`}
+              href={href}
+              active={isActive(href)}
+              icon={<BookIcon size={16} />}
               label={project.name}
             />
           );

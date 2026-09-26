@@ -638,6 +638,8 @@ export default function TaskDetailPage() {
               role={role}
               isAssignee={isAssignee}
               onChanged={refetch}
+              workspaceId={project?.workspaceId}
+              projectId={projectId}
             />
           </main>
         </div>

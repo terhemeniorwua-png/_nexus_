@@ -34,6 +34,7 @@ const {
 const { publishTaskUpdate } = require("../services/taskEvents.service");
 const { publishDeliverableUpdate } = require("../services/deliverableEvents.service");
 const { openStoredFile } = require("../services/storage.service");
+const { findBySourceDeliverable } = require("../services/knowledge.service");
 
 function wantsSubmit(req) {
   const raw = req.body?.submit ?? req.query?.submit;
@@ -48,6 +49,11 @@ function wantsSubmit(req) {
  */
 async function deliverablePayload({ deliverable, versions, reviews, task, version = null }) {
   const creator = await User.findById(deliverable.createdBy).select("name");
+  // Phase 22: the knowledge resource this submission was promoted into, if
+  // any. Resolving it here means the submission UI can show "Added to
+  // Knowledge Base" (or offer the action) without a second request, and can
+  // never present an "Add" action for a submission that is already in.
+  const knowledge = await findBySourceDeliverable(deliverable._id);
   return {
     success: true,
     deliverable: serializeDeliverable({
@@ -60,6 +66,7 @@ async function deliverablePayload({ deliverable, versions, reviews, task, versio
     versions: versions.map((v) => serializeVersion(v, { reviews })),
     version: version ? serializeVersion(version, { reviews }) : null,
     task: task ? { id: String(task._id), status: task.status, title: task.title } : null,
+    knowledge,
   };
 }
 

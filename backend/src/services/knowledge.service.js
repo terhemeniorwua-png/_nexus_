@@ -193,23 +193,29 @@ async function listResources({ project, query = {}, projectRole }) {
   const search = String(query.search || "").trim();
   if (search) {
     const rx = new RegExp(escapeRegex(search), "i");
-    // Resolve author names to ids first: the People collection is the only
-    // place a human-readable name lives, and the resource stores an id.
-    const authors = await User.find({ name: rx }).select("_id").limit(200);
-    const authorIds = authors.map((a) => a._id);
-    const clauses = [
-      { title: rx },
-      { description: rx },
-      { category: rx },
-      { resourceType: rx },
-      { sourceType: rx },
-    ];
-    if (project && project.name) clauses.push({ projectName: rx });
-    if (authorIds.length) {
-      clauses.push({ createdBy: { $in: authorIds } });
-      clauses.push({ approvedBy: { $in: authorIds } });
+    // The page is already scoped to one project, so searching for that
+    // project's own name legitimately matches the whole base. It cannot be a
+    // Mongo clause, because the resource collection has no project-name field
+    // — the name is joined in at serialization time.
+    const matchesProjectName = Boolean(project?.name) && rx.test(project.name);
+    if (!matchesProjectName) {
+      // Resolve author names to ids first: the User collection is the only
+      // place a human-readable name lives, and the resource stores an id.
+      const authors = await User.find({ name: rx }).select("_id").limit(200);
+      const authorIds = authors.map((a) => a._id);
+      const clauses = [
+        { title: rx },
+        { description: rx },
+        { category: rx },
+        { resourceType: rx },
+        { sourceType: rx },
+      ];
+      if (authorIds.length) {
+        clauses.push({ createdBy: { $in: authorIds } });
+        clauses.push({ approvedBy: { $in: authorIds } });
+      }
+      filters.push({ $or: clauses });
     }
-    filters.push({ $or: clauses });
   }
 
   if (query.category) {
@@ -252,8 +258,14 @@ async function listResources({ project, query = {}, projectRole }) {
   await attachPeople(resources);
 
   // Task titles make "Created from: Task #42 — Complete API Documentation"
-  // possible without the client walking the chain itself.
-  const taskIds = [...new Set(resources.map((r) => String(r.sourceTaskId)).filter(Boolean))];
+  // possible without the client walking the chain itself. Filter before
+  // stringifying: String(null) is the truthy "null", which would be handed to
+  // Mongo as an id.
+  const taskIds = [
+    ...new Set(
+      resources.filter((r) => r.sourceTaskId).map((r) => String(r.sourceTaskId))
+    ),
+  ];
   const tasks = taskIds.length
     ? await Task.find({ _id: { $in: taskIds } }).select("title")
     : [];
@@ -363,11 +375,12 @@ async function createResource({ project, user, data }) {
 }
 
 /**
- * Edit a resource, or archive / restore it.
+ * Edit a resource's content.
  *
  * Provenance is immutable: `sourceType` and the source ids are never writable
  * from here, so a promoted resource can never be re-pointed at a different
- * submission to fake a lineage.
+ * submission to fake a lineage. Status is not editable here either — it moves
+ * through `setResourceStatus`, behind its own permission.
  */
 async function updateResource({ project, user, resourceId, data }) {
   assertObjectId(resourceId, "Knowledge resource not found");
@@ -379,14 +392,6 @@ async function updateResource({ project, user, resourceId, data }) {
   if (!resource) throw new ApiError(404, "Knowledge resource not found");
 
   const patch = data || {};
-
-  if (patch.status !== undefined) {
-    const status = String(patch.status).trim().toUpperCase();
-    if (!STATUSES.includes(status)) {
-      throw new ApiError(400, `Unknown status "${patch.status}"`);
-    }
-    resource.status = status;
-  }
 
   const editsTitle =
     patch.title !== undefined || patch.description !== undefined || patch.category !== undefined;
@@ -424,17 +429,53 @@ async function updateResource({ project, user, resourceId, data }) {
 
   await resource.save();
 
-  if (patch.status !== undefined) {
-    await recordActivity({
-      workspaceId: project.workspaceId,
-      projectId: project._id,
-      userId: user._id,
-      action: resource.status === "ARCHIVED" ? "KNOWLEDGE_ARCHIVED" : "KNOWLEDGE_RESTORED",
-      targetType: "knowledgeResource",
-      targetId: resource._id,
-      metadata: { title: resource.title, projectName: project.name },
-    });
+  await recordActivity({
+    workspaceId: project.workspaceId,
+    projectId: project._id,
+    userId: user._id,
+    action: "KNOWLEDGE_UPDATED",
+    targetType: "knowledgeResource",
+    targetId: resource._id,
+    metadata: { title: resource.title, projectName: project.name },
+  });
+
+  await attachPeople([resource]);
+  const task = resource.sourceTaskId
+    ? await Task.findById(resource.sourceTaskId).select("title")
+    : null;
+  return serializeResource(resource, { task, project });
+}
+
+/**
+ * Archive or restore a resource. Archiving is reversible on purpose: knowledge
+ * that turns out to be wrong should be retired, not deleted.
+ */
+async function setResourceStatus({ project, user, resourceId, status }) {
+  assertObjectId(resourceId, "Knowledge resource not found");
+
+  const next = String(status || "").trim().toUpperCase();
+  if (!STATUSES.includes(next)) {
+    throw new ApiError(400, `Unknown status "${status}"`);
   }
+
+  const resource = await KnowledgeResource.findOne({
+    _id: resourceId,
+    projectId: project._id,
+  });
+  if (!resource) throw new ApiError(404, "Knowledge resource not found");
+
+  resource.status = next;
+  await resource.save();
+
+  await recordActivity({
+    workspaceId: project.workspaceId,
+    projectId: project._id,
+    userId: user._id,
+    action: next === "ARCHIVED" ? "KNOWLEDGE_ARCHIVED" : "KNOWLEDGE_RESTORED",
+    targetType: "knowledgeResource",
+    targetId: resource._id,
+    metadata: { title: resource.title, projectName: project.name },
+  });
 
   await attachPeople([resource]);
   const task = resource.sourceTaskId
@@ -565,6 +606,7 @@ module.exports = {
   getResource,
   createResource,
   updateResource,
+  setResourceStatus,
   promoteDeliverable,
   findBySourceDeliverable,
   serializeResource,
