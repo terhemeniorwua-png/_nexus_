@@ -1,36 +1,26 @@
-
-
-  {
-    "version": 2,
-    "services": {
-        "frontend": {
-            "root": ".",
-            "framework": "nextjs"
-        },
-        "backend": {
-            "root": "backend"
-        },
-        
-          "src": "backend",
-          "framework": "express",
-          "runtime": "node",
-          "entrypoint": "server.js"
-        
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "services": {
+    "frontend": {
+      "root": ".",
+      "framework": "nextjs"
     },
-    "rewrites": [
-        {
-            "source": "/api/backend(/.*)?",
-            "destination": {
-                "type": "service",
-                "service": "backend"
-            }
-        },
-        {
-            "source": "/(.*)",
-            "destination": {
-                "type": "service",
-                "service": "frontend"
-            }
-        }
-    ]
+    "backend": {
+      "root": "backend",
+      "framework": "express",
+      "runtime": "node",
+      "entrypoint": "server.js"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/backend(/.*)?",
+      "destination": { "service": "backend" }
+    },
+    {
+      "source": "/(.*)",
+      "destination": { "service": "frontend" }
+    }
+  ]
 }
