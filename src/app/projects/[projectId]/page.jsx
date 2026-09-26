@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useResource, useMutation } from "@/hooks/useResource";
 import "../../workspace.css";
-import { ArrowLeftIcon, EditIcon, TrashIcon, BoardIcon, UsersIcon, CalendarIcon, CheckIcon, PlusIcon, ListTasksIcon } from "@/components/workspace/icons";
+import { ArrowLeftIcon, EditIcon, TrashIcon, BoardIcon, UsersIcon, CalendarIcon, CheckIcon, PlusIcon, ListTasksIcon, LinkIcon, ExternalLinkIcon, BookIcon } from "@/components/workspace/icons";
 import Avatar from "@/components/workspace/Avatar";
 import Modal from "@/components/workspace/Modal";
 import EmptyState from "@/components/workspace/EmptyState";
@@ -14,6 +14,7 @@ import ProgressBar from "@/components/workspace/ProgressBar";
 import ProjectDiscussion from "@/components/workspace/Messaging/ProjectDiscussion";
 import { ProjectStatusBadge, ProjectPriorityBadge } from "@/components/workspace/ProjectBadge";
 import { formatDate } from "@/lib/workspaceApi";
+import { RESOURCE_CATEGORY_META, RESOURCE_ENDPOINTS } from "@/lib/projectResources";
 
 const MANAGEABLE_ROLES = ["WORKSPACE_OWNER", "ADMIN", "PROJECT_MANAGER"];
 const DELETABLE_ROLES = ["WORKSPACE_OWNER", "ADMIN"];
@@ -76,6 +77,13 @@ export default function ProjectDetailPage() {
     workspaceId ? `/workspaces/${workspaceId}/members` : null
   );
   const wsMembers = useMemo(() => wsMembersData?.members || [], [wsMembersData]);
+
+  // A preview of the project's curated links. Waits for the workspace id, which
+  // only arrives with the project itself, so it costs nothing on first paint.
+  const { data: resourcesData } = useResource(
+    workspaceId ? RESOURCE_ENDPOINTS.list(workspaceId, projectId) : null
+  );
+  const resourcesList = useMemo(() => resourcesData?.resources || [], [resourcesData]);
   const existingMemberIds = useMemo(
     () =>
       new Set([
@@ -247,7 +255,22 @@ export default function ProjectDetailPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* The project is the natural place to reach its own knowledge base
+              and curated links; the workspace sidebar lists them too, but a
+              user who opened a project from the projects list has no sidebar. */}
+          <Link
+            href={`/workspaces/${project.workspace?.id}/projects/${project.id}/knowledge`}
+            className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-[13px] font-medium text-zinc-200 transition-colors hover:border-white/25 hover:text-white"
+          >
+            <BookIcon size={15} /> Knowledge
+          </Link>
+          <Link
+            href={`/workspaces/${project.workspace?.id}/projects/${project.id}/resources`}
+            className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-[13px] font-medium text-zinc-200 transition-colors hover:border-white/25 hover:text-white"
+          >
+            <LinkIcon size={15} /> Resources
+          </Link>
           {canManage && (
             <button
               type="button"
@@ -364,6 +387,52 @@ export default function ProjectDetailPage() {
               </Link>
             </div>
           )}
+
+          <div className="mt-8">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 className="text-[14px] font-semibold text-white">Resources</h2>
+              <Link
+                href={`/workspaces/${project.workspace?.id}/projects/${project.id}/resources`}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[12px] font-medium text-zinc-200 transition-colors hover:border-white/25 hover:text-white"
+              >
+                <LinkIcon size={14} />
+                {resourcesList.length === 0
+                  ? "Open resources"
+                  : `All ${resourcesList.length} ${resourcesList.length === 1 ? "resource" : "resources"}`}
+              </Link>
+            </div>
+            {resourcesList.length === 0 ? (
+              <p className="text-[12.5px] text-zinc-500">
+                No curated links yet. Papers, tools and references the project is following will
+                show up here.
+              </p>
+            ) : (
+              <ul className="ws-card divide-y divide-white/6 rounded-2xl px-5">
+                {resourcesList.slice(0, 4).map((resource) => (
+                  <li key={resource.id} className="flex items-center gap-3 py-2.5">
+                    <span
+                      className="h-1.5 w-1.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: RESOURCE_CATEGORY_META[resource.category]?.color || "#6b7280" }}
+                    />
+                    <span className="min-w-0 flex-1 truncate text-[13px] text-zinc-200">
+                      {resource.name}
+                    </span>
+                    {resource.url ? (
+                      <a
+                        href={resource.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Open ${resource.name}`}
+                        className="shrink-0 text-zinc-500 transition-colors hover:text-white"
+                      >
+                        <ExternalLinkIcon size={14} />
+                      </a>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
           <div className="mt-8">
             <div className="mb-3 flex items-center justify-between">

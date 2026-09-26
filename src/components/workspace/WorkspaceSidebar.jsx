@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useResource } from "@/hooks/useResource";
 import { usePresence } from "@/hooks/usePresence";
 import Avatar from "./Avatar";
-import { GridIcon, BoardIcon, BookIcon, DocIcon, ChatIcon, SparkIcon, TeamIcon, UsersIcon } from "./icons";
+import { GridIcon, BoardIcon, BookIcon, DocIcon, ChatIcon, SparkIcon, TeamIcon, UsersIcon, LinkIcon } from "./icons";
 
 function NavLink({ href, active, icon, label, badge }) {
   return (
@@ -99,6 +99,25 @@ export default function WorkspaceSidebar({ workspaceId, workspaceName, role }) {
               href={href}
               active={isActive(href)}
               icon={<BookIcon size={16} />}
+              label={project.name}
+            />
+          );
+        })}
+
+        {/* One entry per project, mirroring the Boards and Knowledge lists, so
+            a project's curated links are reachable without a second project
+            selector. */}
+        <p className="pt-4 pb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-zinc-600">
+          Resources
+        </p>
+        {projects.map((project) => {
+          const href = `/workspaces/${workspaceId}/projects/${project.id}/resources`;
+          return (
+            <NavLink
+              key={`resources-${project.id}`}
+              href={href}
+              active={isActive(href)}
+              icon={<LinkIcon size={16} />}
               label={project.name}
             />
           );

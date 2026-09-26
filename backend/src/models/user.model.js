@@ -36,6 +36,13 @@ const userSchema = new mongoose.Schema(
       enum: ROLES,
       default: DEFAULT_ROLE,
     },
+    // Phase 23 — when the password last changed, so a session that was issued
+    // before it can be refused. Null means "never changed since signup", which
+    // is the same as the account's creation time for this purpose.
+    passwordChangedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -47,6 +54,10 @@ userSchema.pre("save", async function hashPassword(next) {
 
   const saltRounds = Number(process.env.SALT_ROUNDS) || 10;
   this.password = await bcrypt.hash(this.password, saltRounds);
+  // Truncated to whole seconds so it can be compared against a JWT's `iat`,
+  // which has second resolution. Without this a token minted in the same second
+  // as a password change could be read as older than the change and refused.
+  this.passwordChangedAt = new Date(Math.floor(Date.now() / 1000) * 1000);
   next();
 });
 

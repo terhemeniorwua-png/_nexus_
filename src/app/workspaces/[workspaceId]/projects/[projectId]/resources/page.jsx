@@ -42,7 +42,7 @@ export default function ProjectResourcesPage() {
   const role = project?.role || "";
   const canManage = canCurateResources(role);
 
-  const all = data?.resources || [];
+  const all = useMemo(() => data?.resources || [], [data]);
 
   // The list endpoint returns a project's whole curated set in one response, so
   // narrowing happens here rather than costing a request per keystroke. A
@@ -219,8 +219,7 @@ export default function ProjectResourcesPage() {
           <EmptyState
             icon={<SearchIcon size={20} />}
             title="Nothing matches that"
-            description="Try another search term, or clear the filter to see every resource."
-            action={
+            description="Try another search term, or clear the filter to see every resource."            action={
               <button
                 type="button"
                 onClick={() => setFilters(EMPTY_FILTERS)}
@@ -264,8 +263,8 @@ export default function ProjectResourcesPage() {
       >
         <p className="text-[14px] leading-relaxed text-zinc-300">
           Remove{" "}
-          <span className="font-medium text-white">{deleting?.name}</span> from this
-          project's resources? This cannot be undone.
+          <span className="font-medium text-white">{deleting?.name}</span> from the
+          resource list? This cannot be undone.
         </p>
         {deleteError ? (
           <p

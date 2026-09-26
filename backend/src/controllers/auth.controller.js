@@ -212,10 +212,142 @@ async function me(req, res, next) {
   }
 }
 
+/**
+ * Phase 23 — the editable part of a person's own account.
+ *
+ * Email is deliberately not editable here. Changing the address on an account is
+ * a verification problem, not a form field, and silently accepting a new address
+ * would let anyone take over an account by typing into a settings page. There is
+ * no verification mailer in this build, so the address stays read-only until
+ * there is a flow that can prove the new owner.
+ */
+async function updateProfile(req, res, next) {
+  try {
+    const { name, avatar } = req.body || {};
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+
+    if (name !== undefined) {
+      const trimmed = String(name).trim();
+      if (!trimmed) {
+        return res.status(400).json({ success: false, message: "Name cannot be empty" });
+      }
+      if (trimmed.length > 100) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Name cannot exceed 100 characters" });
+      }
+      user.name = trimmed;
+    }
+
+    if (avatar !== undefined) {
+      const trimmed = String(avatar).trim();
+      if (trimmed.length > 500) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Avatar URL cannot exceed 500 characters" });
+      }
+      // An avatar is rendered as an <img> src across the app, so only a real URL
+      // is stored. Clearing the field is allowed and means "fall back to initials".
+      if (trimmed && !/^https?:\/\//i.test(trimmed)) {
+        return res.status(400).json({
+          success: false,
+          message: "Avatar must be an http(s) URL",
+        });
+      }
+      user.avatar = trimmed;
+    }
+
+    await user.save();
+
+    return res.json({
+      success: true,
+      message: "Profile updated",
+      user: user.toJSON(),
+      capabilities: await sessionCapabilities(user._id),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Phase 23 — password change for a signed-in user.
+ *
+ * The current password is required even though the caller already holds a valid
+ * session: it is the check that stops someone who walks up to an unlocked
+ * machine from locking the real owner out. The session cookie is re-issued
+ * afterwards so the device that made the change stays signed in, and the
+ * `authenticate` middleware refuses every token minted before it.
+ */
+async function changePassword(req, res, next) {
+  try {
+    const { currentPassword, newPassword, confirmPassword } = req.body || {};
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Current password and new password are both required",
+      });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "New password and confirmation do not match",
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res
+        .status(400)
+        .json({ success: false, message: "New password must be at least 8 characters" });
+    }
+
+    if (newPassword === currentPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "New password must be different from the current one",
+      });
+    }
+
+    const user = await User.findById(req.user._id).select("+password");
+    if (!user) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Current password is incorrect" });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    // The pre-save hook has just stamped passwordChangedAt, so this fresh token
+    // is the one session that survives the change.
+    setAuthCookie(res, signToken(user._id));
+
+    return res.json({
+      success: true,
+      message: "Password changed. Other devices have been signed out.",
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   register,
   login,
   logout,
   forgotPassword,
   me,
+  updateProfile,
+  changePassword,
 };

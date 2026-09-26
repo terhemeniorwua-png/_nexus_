@@ -39,6 +39,22 @@ async function authenticate(req, res, next) {
     });
   }
 
+  // Phase 23 — changing a password has to end the sessions it was meant to end.
+  // A JWT stays cryptographically valid until it expires, so without this a
+  // stolen or borrowed token would survive a password change by up to
+  // JWT_EXPIRES_IN. A token issued before the change is refused; one issued
+  // after it (a fresh sign-in) is not. Both sides compare in whole seconds
+  // because that is the resolution of `iat`.
+  if (user.passwordChangedAt) {
+    const changedAtSec = Math.floor(new Date(user.passwordChangedAt).getTime() / 1000);
+    if (typeof payload.iat === "number" && payload.iat < changedAtSec) {
+      return res.status(401).json({
+        success: false,
+        message: "Your password has changed. Please sign in again.",
+      });
+    }
+  }
+
   req.user = user;
   next();
 }
