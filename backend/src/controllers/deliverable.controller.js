@@ -399,6 +399,13 @@ async function listProjectDeliverables(req, res, next) {
     const taskIds = await Task.find({ projectId: req.project._id }).distinct("_id");
     if (!taskIds.length) return res.json({ success: true, count: 0, deliverables: [] });
 
+    // Phase 23: the project-wide submissions list shows which task each
+    // submission belongs to, and `taskTitle` was always undefined here because
+    // the tasks were never fetched. They are looked up either way, so this is
+    // one extra query rather than a new lookup per deliverable.
+    const tasks = await Task.find({ _id: { $in: taskIds } }).select("title status");
+    const taskById = new Map(tasks.map((t) => [String(t._id), t]));
+
     const deliverables = await Deliverable.find({ taskId: { $in: taskIds } })
       .sort({ updatedAt: -1 })
       .populate("createdBy", "name");
@@ -425,6 +432,7 @@ async function listProjectDeliverables(req, res, next) {
           versions: own,
           reviews: [],
           creator: d.createdBy && d.createdBy.name ? d.createdBy : null,
+          task: taskById.get(String(d.taskId)) || null,
         });
       }),
     });

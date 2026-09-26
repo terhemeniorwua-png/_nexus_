@@ -12,14 +12,19 @@ const { createNotification } = require("../services/notification.service");
 // remain admins" / "You cannot remove the workspace owner"), and a control that
 // can only ever fail is worse than no control.
 function normalizeMember(member, user, ownerId) {
+  // These queries populate `userId`, so it arrives as a User document here and
+  // as a raw ObjectId on the paths that do not. Comparing the document itself
+  // would stringify the whole user and never match.
+  const memberUserId = member.userId?._id || member.userId;
+
   return {
     id: member.id,
     role: member.role,
     joinedAt: member.createdAt,
-    isOwner: ownerId ? String(member.userId) === String(ownerId) : false,
+    isOwner: ownerId ? String(memberUserId) === String(ownerId) : false,
     user: user
       ? { id: user.id, name: user.name, email: user.email, avatar: user.avatar || "" }
-      : { id: String(member.userId) },
+      : { id: String(memberUserId) },
   };
 }
 

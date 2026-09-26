@@ -94,8 +94,12 @@ export const REVIEWER_ROLES = ["WORKSPACE_OWNER", "ADMIN", "PROJECT_MANAGER"];
 
 export const CONTRIBUTOR_ROLES = [...REVIEWER_ROLES, "MEMBER", "COLLABORATOR"];
 
-export const DELIVERABLE_ENDPOINTS = {  task: (taskId) => `/tasks/${taskId}/deliverable`,
+export const DELIVERABLE_ENDPOINTS = {
+  task: (taskId) => `/tasks/${taskId}/deliverable`,
   create: (taskId) => `/tasks/${taskId}/deliverables`,
+  // Project-wide status list, used by the Submissions page.
+  projectList: (workspaceId, projectId) =>
+    `/workspaces/${workspaceId}/projects/${projectId}/deliverables`,
   deliverable: (deliverableId) => `/deliverables/${deliverableId}`,
   versions: (deliverableId) => `/deliverables/${deliverableId}/versions`,
   version: (deliverableId, versionNumber) =>

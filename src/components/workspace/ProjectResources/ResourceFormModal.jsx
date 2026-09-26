@@ -68,15 +68,16 @@ export default function ResourceFormModal({
       return;
     }
 
-    // A name is the only required field server-side, but sending empty strings
-    // for the optional ones would overwrite whatever is already stored on an
-    // edit, so blanks are omitted instead.
+    // The PATCH handler only skips a field when it is `undefined`, so both
+    // optional values are always sent — that is what lets a user clear a URL or
+    // description that is already stored. Omitting blanks instead would leave
+    // the old value in place with no way to remove it.
     const payload = {
       name,
       category: form.category,
+      url: form.url.trim(),
+      description: form.description.trim(),
     };
-    if (form.url.trim()) payload.url = form.url.trim();
-    if (form.description.trim()) payload.description = form.description.trim();
 
     const path = editing
       ? RESOURCE_ENDPOINTS.item(workspaceId, projectId, resource.id)

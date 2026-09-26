@@ -35,107 +35,110 @@ export default function Topbar({ workspaceName, backHref = "/dashboard", onOpenN
   }
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-[var(--header-bg)] px-4 backdrop-blur-md md:px-6">
-      <div className="flex min-w-0 items-center gap-3">
-        {onOpenNav ? (
-          <button
-            type="button"
-            onClick={onOpenNav}
-            aria-label="Open navigation"
-            className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-300 transition-colors hover:bg-white/10 hover:text-white md:hidden"
-          >
-            <MenuIcon size={17} />
-          </button>
-        ) : null}
-        <Link href={backHref} className="text-zinc-400 transition-colors hover:text-white" aria-label="Go back">
-          <ArrowLeftIcon size={18} />
-        </Link>
-        <Link href="/dashboard" className="flex items-center gap-2.5">
-          <NexusLogo size={26} />
-          <span className="hidden text-[15px] font-semibold tracking-tight text-white sm:inline">
-            Nexus
-          </span>
-        </Link>
-        {workspaceName && (
-          <>
-            <span className="text-white/15">/</span>
-            <span className="truncate text-sm font-medium text-zinc-300">{workspaceName}</span>
-          </>
-        )}
-      </div>
-
-      <div className="hidden lg:block">
-        <GlobalNavLinks />
-      </div>
-
-      <div className="flex items-center gap-2.5">
-        <ThemeToggle />
-        <Link
-          href="/notifications"
-          aria-label={`Notifications (${unreadCount} unread)`}
-          className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-300 transition-colors hover:border-white/20 hover:text-white"
-        >
-          <BellIcon size={17} />
-          {unreadCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-blue-600 px-1 text-[10.5px] font-bold text-oncolor shadow-[0_0_10px_rgba(37,99,235,0.6)]">
-              {unreadCount > 99 ? "99+" : unreadCount}
+    // Two rows on small screens: the first keeps the fixed h-16 the rest of the
+    // shell is laid out against, the second carries the nav links. As a single
+    // flex row the nav would have been squeezed in beside the logo.
+    <header className="sticky top-0 z-20 shrink-0 border-b border-white/10 bg-[var(--header-bg)] backdrop-blur-md">
+      <div className="flex h-16 items-center justify-between gap-4 px-4 md:px-6">
+        <div className="flex min-w-0 items-center gap-3">
+          {onOpenNav ? (
+            <button
+              type="button"
+              onClick={onOpenNav}
+              aria-label="Open navigation"
+              className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-300 transition-colors hover:bg-white/10 hover:text-white md:hidden"
+            >
+              <MenuIcon size={17} />
+            </button>
+          ) : null}
+          <Link href={backHref} className="text-zinc-400 transition-colors hover:text-white" aria-label="Go back">
+            <ArrowLeftIcon size={18} />
+          </Link>
+          <Link href="/dashboard" className="flex items-center gap-2.5">
+            <NexusLogo size={26} />
+            <span className="hidden text-[15px] font-semibold tracking-tight text-white sm:inline">
+              Nexus
             </span>
-          )}
-        </Link>
-
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setMenuOpen((v) => !v)}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 p-1.5 pl-2 transition-colors hover:border-white/20"
-          >
-            <Avatar name={user?.name} size={26} />
-            <span className="hidden max-w-[140px] truncate text-[13px] font-medium text-zinc-200 sm:block">
-              {user?.name?.split(" ")[0]}
-            </span>
-          </button>
-
-          {menuOpen && (
+          </Link>
+          {workspaceName && (
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-              <div className="ws-glass absolute right-0 z-20 mt-2 w-60 rounded-xl p-1.5">
-                <div className="border-b border-white/10 px-3 py-2.5">
-                  <p className="truncate text-[13.5px] font-semibold text-white">{user?.name}</p>
-                  <p className="truncate font-mono text-[11.5px] text-zinc-500">{user?.email}</p>
-                </div>
-                {/* Leaving the workspace shell for a global page: the drawer has
-                    to be put away as well, or it would still be covering the
-                    screen on arrival. */}
-                <Link
-                  href="/settings"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    if (onOpenNav) onOpenNav();
-                  }}
-                  className="mt-1 flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
-                >
-                  <SettingsIcon size={15} /> Settings
-                </Link>
-                <Link
-                  href="/notifications"
-                  onClick={() => setMenuOpen(false)}
-                  className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
-                >
-                  <SparkIcon size={15} /> Notifications
-                </Link>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  disabled={loggingOut}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-zinc-300 transition-colors hover:bg-white/5 hover:text-white disabled:opacity-50"
-                >
-                  <LogOutIcon size={15} /> {loggingOut ? "Signing out…" : "Sign out"}
-                </button>
-              </div>
+              <span className="text-white/15">/</span>
+              <span className="truncate text-sm font-medium text-zinc-300">{workspaceName}</span>
             </>
           )}
+        </div>
+
+        <div className="hidden lg:block">
+          <GlobalNavLinks />
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <ThemeToggle />
+          <Link
+            href="/notifications"
+            aria-label={`Notifications (${unreadCount} unread)`}
+            className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-300 transition-colors hover:border-white/20 hover:text-white"
+          >
+            <BellIcon size={17} />
+            {unreadCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-blue-600 px-1 text-[10.5px] font-bold text-oncolor shadow-[0_0_10px_rgba(37,99,235,0.6)]">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
+          </Link>
+
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 p-1.5 pl-2 transition-colors hover:border-white/20"
+            >
+              <Avatar name={user?.name} size={26} />
+              <span className="hidden max-w-[140px] truncate text-[13px] font-medium text-zinc-200 sm:block">
+                {user?.name?.split(" ")[0]}
+              </span>
+            </button>
+
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                <div className="ws-glass absolute right-0 z-20 mt-2 w-60 rounded-xl p-1.5">
+                  <div className="border-b border-white/10 px-3 py-2.5">
+                    <p className="truncate text-[13.5px] font-semibold text-white">{user?.name}</p>
+                    <p className="truncate font-mono text-[11.5px] text-zinc-500">{user?.email}</p>
+                  </div>
+                  {/* Leaving the workspace shell for a global page. The drawer is
+                      closed by the pathname change in the workspace layout, so it
+                      must not be opened here — and the topbar is only reachable
+                      while it is closed anyway, since the drawer covers it. */}
+                  <Link
+                    href="/settings"
+                    onClick={() => setMenuOpen(false)}
+                    className="mt-1 flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
+                  >
+                    <SettingsIcon size={15} /> Settings
+                  </Link>
+                  <Link
+                    href="/notifications"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
+                  >
+                    <SparkIcon size={15} /> Notifications
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    disabled={loggingOut}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-zinc-300 transition-colors hover:bg-white/5 hover:text-white disabled:opacity-50"
+                  >
+                    <LogOutIcon size={15} /> {loggingOut ? "Signing out…" : "Sign out"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
