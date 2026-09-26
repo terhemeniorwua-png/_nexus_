@@ -87,18 +87,22 @@ export default function TaskModal({
     setDescription(task?.description || "");
     setStatus(task?.status || columnToStatus(defaultStatus));
     setPriority(LEGACY_PRIORITY[task?.priority] || task?.priority || "MEDIUM");
-    setAssignedTo(task?.assignedTo?.id || "");
+    // `assignedTo` arrives in more than one shape across this API: the board
+    // sends a populated user document, while the task create/update endpoints
+    // send a bare id string. Normalise all of them, and never read through
+    // `task.assignedTo` unguarded — in "new task" mode `task` is null.
+    const rawAssignee = task?.assignedTo;
+    const assigneeId =
+      (typeof rawAssignee === "object"
+        ? rawAssignee?._id || rawAssignee?.id
+        : rawAssignee) || "";
+    setAssignedTo(assigneeId);
     setDueDate(task?.dueDate ? new Date(task.dueDate).toISOString().slice(0, 10) : "");
     setTagsText((task?.tags || []).join(", "));
     setSubtasks(
       (task?.subtasks || []).map((s) => ({ title: s.title, completed: Boolean(s.completed) }))
     );
     setNewSubtask("");
-    setAssignedTo(
-    typeof task?.assignedTo === "object"
-    ? task.assignedTo?.id || ""
-    : task?.assignedTo || ""
-);
   }, [open, task, defaultStatus]);
   /* eslint-enable react-hooks/set-state-in-effect */
 

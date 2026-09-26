@@ -107,6 +107,14 @@ const PROJECT_ACTIONS = Object.freeze([
   "create_project_resource",
   "update_project_resource",
   "delete_project_resource",
+  // Phase 22 knowledge base. Reading is deliberately available to every
+  // project role (a VIEWER can open the project, so it can read the project's
+  // knowledge); curating knowledge is a project-management action, because it
+  // is how approved work is promoted into the team's permanent record.
+  "view_knowledge_base",
+  "create_knowledge_resource",
+  "update_knowledge_resource",
+  "archive_knowledge_resource",
   "view_document",
   "create_document",
   "update_document",
@@ -181,6 +189,11 @@ const PROJECT_MANAGER_ACTIONS = Object.freeze([
   "create_project_resource",
   "update_project_resource",
   "delete_project_resource",
+  // Phase 22: a project manager curates the knowledge base.
+  "view_knowledge_base",
+  "create_knowledge_resource",
+  "update_knowledge_resource",
+  "archive_knowledge_resource",
   "view_document",
   "create_document",
   "update_document",
@@ -205,6 +218,7 @@ const MEMBER_ACTIONS = Object.freeze([
   "create_deliverable_version", // own assigned tasks only
   "view_project_members",
   "view_project_resources",
+  "view_knowledge_base", // Phase 22: read and reuse the knowledge, never curate it
   "view_document",
   "create_document",
   "update_document",
@@ -218,6 +232,7 @@ const VIEWER_ACTIONS = Object.freeze([
   "view_deliverable",
   "view_project_members",
   "view_project_resources",
+  "view_knowledge_base", // Phase 22: a viewer can read what the team has learned
   "view_document",
   "view_activity",
 ]);
@@ -238,6 +253,7 @@ const COLLABORATOR_ACTIONS = Object.freeze([
   "create_deliverable_version", // own assigned tasks only
   "view_project_members",
   "view_project_resources",
+  "view_knowledge_base", // Phase 22: read and reuse the knowledge, never curate it
   "view_document",
   "view_activity",
 ]);
