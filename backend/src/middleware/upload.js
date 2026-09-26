@@ -36,7 +36,10 @@ function handleUploadError(error, _req, _res, next) {
   if (error instanceof multer.MulterError) {
     if (error.code === "LIMIT_FILE_SIZE") {
       const mb = (getMaxFileSize() / (1024 * 1024)).toFixed(1);
-      return next(new ApiError(400, `File is too large (maximum ${mb} MB)`));
+      // 413, not 400: the request is well-formed, the payload is simply too
+      // large. Phase 24 — the API contract reserves 400 for a malformed or
+      // invalid upload and 413 for one that exceeds the configured ceiling.
+      return next(new ApiError(413, `File is too large (maximum ${mb} MB)`));
     }
     if (error.code === "LIMIT_UNEXPECTED_FILE" || error.code === "LIMIT_FILE_COUNT") {
       return next(new ApiError(400, "Attach one file, sent as the `file` field"));

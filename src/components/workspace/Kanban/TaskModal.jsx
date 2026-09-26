@@ -23,6 +23,12 @@ const LEGACY_PRIORITY = {
   Urgent: "URGENT",
 };
 
+// Stable empty task. See the note on the rehydration effect below: the Board
+// mounts TaskModal with `task={null}` until a task is opened, and a module-level
+// constant keeps a non-null object to read from without changing identity
+// between renders.
+const NO_TASK = {};
+
 function Field({ label, children }) {
   return (
     <label className="block">
@@ -77,33 +83,48 @@ export default function TaskModal({
   const [error, setError] = useState("");
   const [isDeleted, setIsDeleted] = useState(false);
 
+  // Never null, so the reads below are safe even after the React Compiler
+  // rewrites them into an unguarded dependency check.
+  const taskData = task || NO_TASK;
+
   // Rehydrate the form whenever it opens, seeded from the task being edited.
-/* eslint-disable react-hooks/set-state-in-effect */
+  //
+  // Every field below is read off `taskData` rather than `task`. The React
+  // Compiler (enabled in this app) rewrites this effect into a dependency cache
+  // whose guard reads the properties directly — `task.assignedTo`,
+  // `task.title`, … — and it drops the optional chaining when it does. The
+  // Board mounts this component unconditionally and passes `task={null}`
+  // until a task is opened for editing, so that generated read threw
+  // "Cannot read properties of null (reading 'assignedTo')" and took the whole
+  // board down before a single task was drawn. `NO_TASK` is a module constant,
+  // so it keeps a stable identity (the effect does not re-run every render)
+  // and guarantees the object being dereferenced is never null.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!open) return;
     setError("");
     setIsDeleted(false);
-    setTitle(task?.title || "");
-    setDescription(task?.description || "");
-    setStatus(task?.status || columnToStatus(defaultStatus));
-    setPriority(LEGACY_PRIORITY[task?.priority] || task?.priority || "MEDIUM");
+    setTitle(taskData.title || "");
+    setDescription(taskData.description || "");
+    setStatus(taskData.status || columnToStatus(defaultStatus));
+    setPriority(LEGACY_PRIORITY[taskData.priority] || taskData.priority || "MEDIUM");
     // `assignedTo` arrives in more than one shape across this API: the board
     // sends a populated user document, while the task create/update endpoints
-    // send a bare id string. Normalise all of them, and never read through
-    // `task.assignedTo` unguarded — in "new task" mode `task` is null.
-    const rawAssignee = task?.assignedTo;
+    // send a bare id string. Normalise all of them. The truthiness check comes
+    // first because `typeof null === "object"`.
+    const rawAssignee = taskData.assignedTo;
     const assigneeId =
-      (typeof rawAssignee === "object"
-        ? rawAssignee?._id || rawAssignee?.id
-        : rawAssignee) || "";
+      rawAssignee && typeof rawAssignee === "object"
+        ? rawAssignee._id || rawAssignee.id || ""
+        : rawAssignee || "";
     setAssignedTo(assigneeId);
-    setDueDate(task?.dueDate ? new Date(task.dueDate).toISOString().slice(0, 10) : "");
-    setTagsText((task?.tags || []).join(", "));
+    setDueDate(taskData.dueDate ? new Date(taskData.dueDate).toISOString().slice(0, 10) : "");
+    setTagsText((taskData.tags || []).join(", "));
     setSubtasks(
-      (task?.subtasks || []).map((s) => ({ title: s.title, completed: Boolean(s.completed) }))
+      (taskData.subtasks || []).map((s) => ({ title: s.title, completed: Boolean(s.completed) }))
     );
     setNewSubtask("");
-  }, [open, task, defaultStatus]);
+  }, [open, taskData, defaultStatus]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   function addSubtask() {
@@ -159,8 +180,15 @@ export default function TaskModal({
   }
 
   async function handleDelete() {
+    // `taskData`, not `task`: the React Compiler caches this handler with a
+    // guard that reads the id off the object directly, and this component is
+    // mounted with no task selected. The explicit check keeps the behaviour
+    // honest as well as the code safe.
+    const taskId = taskData.id;
+    if (!taskId) return;
+
     const { error: apiError } = await run(
-      `/workspaces/${workspaceId}/projects/${projectId}/tasks/${task.id}`,
+      `/workspaces/${workspaceId}/projects/${projectId}/tasks/${taskId}`,
       { method: "DELETE" }
     );
     if (apiError) {
@@ -168,7 +196,7 @@ export default function TaskModal({
       return;
     }
     setIsDeleted(true);
-    onDeleted && onDeleted(task.id);
+    onDeleted && onDeleted(taskId);
     onClose();
   }
 

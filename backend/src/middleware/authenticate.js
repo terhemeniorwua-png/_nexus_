@@ -31,6 +31,19 @@ async function authenticate(req, res, next) {
     });
   }
 
+  // Phase 24 — purpose separation. The password-reset JWT is signed with the
+  // same secret and also carries `userId`, so before this check a reset token
+  // was a valid session credential: anyone holding the reset link could paste
+  // it into the session cookie and be authenticated for its 30-minute life.
+  // A session token carries no `purpose` (see auth.controller's signToken), so
+  // any token that declares a non-session purpose is refused here.
+  if (payload.purpose && payload.purpose !== "session") {
+    return res.status(401).json({
+      success: false,
+      message: "Authentication required",
+    });
+  }
+
   const user = await User.findById(payload.userId);
   if (!user) {
     return res.status(401).json({

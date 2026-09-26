@@ -23,11 +23,14 @@ const projectResourceRoutes = require("./routes/projectResource.route");
 const knowledgeRoutes = require("./routes/knowledge.route");
 const taskRoutes = require("./routes/task.route");
 const { notFoundHandler, errorHandler } = require("./middleware/errorHandler");
+const { securityHeaders } = require("./middleware/securityHeaders");
 
 const app = express();
 
 const clientOrigin = process.env.CLIENT_URL || "http://localhost:3000";
 
+app.disable("x-powered-by");
+app.use(securityHeaders);
 app.use(
   cors({
     origin: clientOrigin,

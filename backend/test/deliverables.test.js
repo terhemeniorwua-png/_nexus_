@@ -330,11 +330,13 @@ test("upload validation: type allowlist, magic bytes, and size limit", async () 
   assert.match(spoofed.json.message, /content|signature|does not match/i);
 
   // Over the configured limit (DELIVERABLE_MAX_FILE_SIZE=1024 here).
+  // 413 Payload Too Large is the correct status for a body the server refuses
+  // to read; it used to be reported as 400.
   const tooBig = await api("POST", createUrl(state.workTaskId), {
     cookie: cookies.linus,
     form: fileForm({ buffer: Buffer.concat([PDF_BYTES, Buffer.alloc(2048, 0x20)]), name: "big.pdf" }),
   });
-  assert.equal(tooBig.status, 400);
+  assert.equal(tooBig.status, 413);
   assert.match(tooBig.json.message, /too large/i);
 
   assert.equal(await Deliverable.countDocuments({}), 0, "rejected uploads create nothing");
