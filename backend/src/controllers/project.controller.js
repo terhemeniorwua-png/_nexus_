@@ -233,11 +233,12 @@ async function createProject(req, res, next) {
 
     await recordActivity({
       workspaceId: workspace._id,
+      projectId: project._id,
       userId: req.user._id,
       action: "PROJECT_CREATED",
       targetType: "project",
       targetId: project._id,
-      metadata: { name: project.name },
+      metadata: { name: project.name, projectId: String(project._id) },
     });
 
     project.role = "PROJECT_MANAGER";
@@ -347,11 +348,12 @@ async function updateProject(req, res, next) {
 
     await recordActivity({
       workspaceId: req.workspace._id,
+      projectId: project._id,
       userId: req.user._id,
       action: "PROJECT_UPDATED",
       targetType: "project",
       targetId: project._id,
-      metadata: { name: project.name },
+      metadata: { name: project.name, projectId: String(project._id) },
     });
 
     const [data] = await enrichProjects([project]);

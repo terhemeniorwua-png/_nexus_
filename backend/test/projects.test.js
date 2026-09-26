@@ -26,6 +26,7 @@ const Team = require("../src/models/team.model");
 const TeamMember = require("../src/models/teamMember.model");
 const Project = require("../src/models/project.model");
 const ProjectMember = require("../src/models/projectMember.model");
+const Activity = require("../src/models/activity.model");
 const app = require("../src/app");
 
 const PASSWORD = "Password123!";
@@ -621,4 +622,44 @@ test("a viewer gets no create-eligible workspaces from meta", async () => {
   const res = await api("GET", "/api/projects/meta", { cookie: cookies.barbara });
   assert.equal(res.status, 200);
   assert.deepEqual(res.json.workspaces, []);
+});
+// ---------------------------------------------------------------------------
+// Project activity attribution
+//
+// Every project-targeted activity must name its project, both as the record's
+// own `projectId` (so the row can be queried per project) and as
+// `metadata.projectId` (which is what the activity feed renders its link
+// from). Creating and updating a project used to write neither, which left
+// those rows unattributable and dropped the "View" link in the feed.
+// ---------------------------------------------------------------------------
+
+test("creating a project records a PROJECT_CREATED activity attributed to that project", async () => {
+  const created = await api("POST", "/api/projects", {
+    cookie: cookies.alan,
+    body: {
+      name: "Attribution Probe",
+      teamId: state.researchA,
+      managerId: state.margaretId,
+    },
+  });
+  assert.equal(created.status, 201, JSON.stringify(created.json));
+  const projectId = created.json.project.id;
+
+  const entry = await Activity.findOne({ action: "PROJECT_CREATED", targetId: projectId });
+  assert.ok(entry, "no PROJECT_CREATED activity was recorded");
+  assert.equal(String(entry.projectId), projectId, "the activity is not attributed to its project");
+  assert.equal(entry.metadata.projectId, projectId, "the activity carries no projectId for the feed link");
+  assert.equal(entry.metadata.name, "Attribution Probe");
+  assert.equal(String(entry.userId), state.alanId, "the activity does not name who did it");
+
+  const updated = await api("PATCH", `/api/projects/${projectId}`, {
+    cookie: cookies.alan,
+    body: { name: "Attribution Probe Renamed" },
+  });
+  assert.equal(updated.status, 200, JSON.stringify(updated.json));
+
+  const updateEntry = await Activity.findOne({ action: "PROJECT_UPDATED", targetId: projectId });
+  assert.ok(updateEntry, "no PROJECT_UPDATED activity was recorded");
+  assert.equal(String(updateEntry.projectId), projectId, "the update is not attributed to its project");
+  assert.equal(updateEntry.metadata.projectId, projectId, "the update carries no projectId for the feed link");
 });
