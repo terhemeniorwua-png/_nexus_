@@ -64,7 +64,11 @@ export default function KnowledgeFilters({
             value={filters.status}
             onChange={(value) => set({ status: value })}
           >
-            <option value="">All statuses</option>
+            {/* The empty option is the active list, not "everything": an
+                archived resource is meant to be out of circulation until
+                someone goes looking for it. */}
+            <option value="">Active</option>
+            <option value="ALL">All statuses</option>
             {KNOWLEDGE_STATUSES.map((status) => (
               <option key={status} value={status}>
                 {KNOWLEDGE_STATUS_META[status]?.label || knowledgeStatusLabel(status)}

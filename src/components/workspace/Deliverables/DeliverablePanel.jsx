@@ -325,8 +325,10 @@ export default function DeliverablePanel({
   // Phase 22 — promote an approved submission into the project knowledge base.
   // The knowledge reference is read from the deliverable payload, so this panel
   // renders what the database says rather than a local guess about whether the
-  // promotion already happened.
-  const knowledge = deliverable?.knowledge || null;
+  // promotion already happened. It sits beside the deliverable in the response,
+  // not inside it, because it is a sibling aggregate rather than a field of the
+  // submission.
+  const knowledge = data?.knowledge || null;
   const knowledgeHref =
     knowledge && workspaceId && projectId
       ? `/workspaces/${workspaceId}/projects/${projectId}/knowledge/${knowledge.id}`

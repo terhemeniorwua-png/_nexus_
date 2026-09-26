@@ -877,12 +877,29 @@ test("archiving hides a resource from the active list and is reversible", async 
   assert.equal(archive.status, 200);
   assert.equal(archive.json.resource.status, "ARCHIVED");
 
+  // No status parameter at all: the default view is the active one, otherwise
+  // archiving would change a label without changing what anybody reads.
+  const byDefault = await api("GET", `${kb(state.platformId)}`, { cookie: cookies.alan });
+  assert.ok(
+    !byDefault.json.resources.some((r) => r.id === state.repoId),
+    "an archived resource leaves the default list without being asked to"
+  );
+
   const active = await api("GET", `${kb(state.platformId)}?status=APPROVED`, {
     cookie: cookies.alan,
   });
   assert.ok(
     !active.json.resources.some((r) => r.id === state.repoId),
     "an archived resource is not an active one"
+  );
+
+  // Archived knowledge is still reachable — it is hidden, not deleted.
+  const everything = await api("GET", `${kb(state.platformId)}?status=ALL`, {
+    cookie: cookies.alan,
+  });
+  assert.ok(
+    everything.json.resources.some((r) => r.id === state.repoId),
+    "status=ALL still shows archived knowledge"
   );
 
   const archived = await api("GET", `${kb(state.platformId)}?status=ARCHIVED`, {
@@ -943,7 +960,7 @@ test("promoted knowledge lists with the rest, most recently touched first", asyn
   const res = await api("GET", kb(state.platformId), { cookie: cookies.alan });
   const ids = res.json.resources.map((r) => r.id);
   const stored = (
-    await KnowledgeResource.find({ projectId: state.platformId })
+    await KnowledgeResource.find({ projectId: state.platformId, status: "APPROVED" })
       .sort({ updatedAt: -1, createdAt: -1 })
       .select("_id")
   ).map((r) => String(r._id));

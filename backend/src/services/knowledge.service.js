@@ -228,15 +228,21 @@ async function listResources({ project, query = {}, projectRole }) {
     }
   }
 
+  // Archiving exists to take a resource out of circulation, so the default view
+  // is the active one. `status=ALL` is the explicit way to ask for everything,
+  // archived rows included.
+  let status = "APPROVED";
   if (query.status) {
-    const status = String(query.status).trim().toUpperCase();
-    if (status !== "ALL") {
-      if (!STATUSES.includes(status)) {
-        throw new ApiError(400, `Unknown status "${query.status}"`);
-      }
-      filters.push({ status });
+    const requested = String(query.status).trim().toUpperCase();
+    if (requested === "ALL") {
+      status = null;
+    } else if (!STATUSES.includes(requested)) {
+      throw new ApiError(400, `Unknown status "${query.status}"`);
+    } else {
+      status = requested;
     }
   }
+  if (status) filters.push({ status });
 
   if (query.resourceType) {
     const resourceType = String(query.resourceType).trim().toUpperCase();
