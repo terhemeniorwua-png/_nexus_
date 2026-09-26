@@ -12,6 +12,7 @@ const User = require("../models/user.model");
 const { ApiError } = require("../middleware/errorHandler");
 const { recordActivity } = require("../services/activity.service");
 const { ensureDefaultColumns } = require("../services/board.service");
+const { recordProjectView } = require("../services/dashboard.service");
 const { toProject } = require("../sockets/emit");
 const { SOCKET_EVENTS } = require("../sockets/events");
 const {
@@ -262,6 +263,13 @@ async function getProject(req, res, next) {
       enrichProjects([project]),
       getProjectMembers(project._id),
     ]);
+
+    // Phase 20: opening a project is what "viewing" it means, so the read is
+    // where the timestamp is recorded. Doing it here rather than in the
+    // frontend means it cannot be skipped by a client that forgets, and it
+    // cannot be forged for a project the user cannot open — `req.project` only
+    // exists because `projectAccess` already authorized this request.
+    await recordProjectView({ userId: req.user._id, projectId: project._id });
 
     res.json({
       success: true,

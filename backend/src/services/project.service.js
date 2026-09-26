@@ -282,6 +282,77 @@ async function getProjectMembers(projectId) {
   });
 }
 
+/**
+ * The projects a user is allowed to see, across every workspace they touch.
+ *
+ * This is the single definition of project reachability for read paths, and it
+ * encodes the app's actual access model rather than a simplification:
+ *
+ *   • workspace owners and Admins see every project in that workspace
+ *   • everyone else sees only projects they are a member of, or manage
+ *
+ * It is deliberately not "all projects in my workspaces": a plain Member must
+ * not see a project they were never added to, and Phase 8/10 authorization
+ * enforces the same rule on every single request. Dashboard counts derive from
+ * this function so a number can never be broader than what the user could
+ * actually open.
+ *
+ * Moved here from `controllers/overview.controller.js` (Phase 20) so the
+ * overview and the dashboard cannot drift apart.
+ */
+async function accessibleProjectScope(me) {
+  const [memberships, owned] = await Promise.all([
+    WorkspaceMember.find({ userId: me._id }),
+    Workspace.find({ ownerId: me._id }).select("_id"),
+  ]);
+
+  const ownedIds = new Set(owned.map((w) => String(w._id)));
+
+  const roleByWorkspace = {};
+  memberships.forEach((m) => {
+    roleByWorkspace[String(m.workspaceId)] = m.role;
+  });
+  owned.forEach((w) => {
+    roleByWorkspace[String(w._id)] = "Admin";
+  });
+
+  const workspaceIds = [...new Set([...Object.keys(roleByWorkspace), ...ownedIds])];
+
+  if (workspaceIds.length === 0) {
+    return { workspaceIds: [], projects: [], roleByWorkspace, ownedIds };
+  }
+
+  const adminWorkspaceIds = new Set(
+    Object.entries(roleByWorkspace)
+      .filter(([, role]) => role === "Admin")
+      .map(([wsId]) => wsId)
+  );
+
+  const [memberProjects, managedProjects] = await Promise.all([
+    ProjectMember.find({ userId: me._id }).select("projectId"),
+    Project.find({ managerId: me._id }).select("_id"),
+  ]);
+
+  const accessibleIds = new Set([
+    ...memberProjects.map((m) => String(m.projectId)),
+    ...managedProjects.map((p) => String(p._id)),
+  ]);
+
+  if (adminWorkspaceIds.size > 0) {
+    const adminAll = await Project.find({
+      workspaceId: { $in: [...adminWorkspaceIds] },
+    }).select("_id");
+    adminAll.forEach((p) => accessibleIds.add(String(p._id)));
+  }
+
+  const projects = await Project.find({
+    workspaceId: { $in: workspaceIds },
+    _id: { $in: [...accessibleIds] },
+  });
+
+  return { workspaceIds, projects, roleByWorkspace, ownedIds };
+}
+
 module.exports = {
   STATUSES,
   PRIORITIES,
@@ -293,4 +364,5 @@ module.exports = {
   enrichProjects,
   computeProjectStats,
   getProjectMembers,
+  accessibleProjectScope,
 };

@@ -64,6 +64,23 @@ async function main() {
   // for the isolation check in step 4.
   const linus = await login("linus@example.com");
 
+  // A brand-new account in no workspace at all. Every seeded user shares the
+  // one workspace, so without this there is no way to check the boundary from
+  // the outside against a real server.
+  const outsiderEmail = `smoke-outsider-${Date.now()}@example.com`;
+  const registered = await api("POST", "/api/auth/register", {
+    body: {
+      name: "Smoke Outsider",
+      email: outsiderEmail,
+      password: PASSWORD,
+      confirmPassword: PASSWORD,
+    },
+  });
+  if (registered.status !== 201 && registered.status !== 200) {
+    throw new Error(`register outsider: ${registered.status} ${JSON.stringify(registered.json)}`);
+  }
+  const outsider = await login(outsiderEmail);
+
   const workspaces = await api("GET", "/api/workspaces", { token: ada });
   const workspaceId = workspaces.json.workspaces[0].id;
   const workspace = await api("GET", `/api/workspaces/${workspaceId}`, { token: ada });
@@ -127,6 +144,16 @@ async function main() {
   log(`   alan (#general)      received: ${seen.alan.channel.length}`);
   log(`   ada  (#general)      received: ${seen.ada.channel.length}`);
   log(`   margaret (#help)     received: ${seen.margaret.channel.length}  <- must be 0`);
+
+  // The channel-scoped route (spec §9) carries no workspace at all, so the
+  // server has to derive it. Check it both works and refuses an outsider.
+  const scoped = await api("POST", `/api/channels/${general._id}/messages`, {
+    token: ada,
+    body: { content: "via the channel-scoped route" },
+  });
+  const scopedBack = await api("GET", `/api/channels/${general._id}/messages`, { token: alan });
+  const scopedOutsider = await api("GET", `/api/channels/${general._id}/messages`, { token: outsider });
+  log(`   channel-scoped POST ${scoped.status}, GET ${scopedBack.status}, non-member GET ${scopedOutsider.status}  <- must be 201, 200, 403`);
 
   // --- 2. project discussion ------------------------------------------------
   log("\n2. PROJECT DISCUSSION — Platform");

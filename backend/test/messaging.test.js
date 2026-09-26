@@ -1019,10 +1019,17 @@ test("a reconnecting client resynchronises from REST, and misses nothing", async
   );
 
   // And the room is usable again, so subsequent messages arrive live.
-  await new Promise((resolve) =>
-    reconnected.emit("channel:join", { workspaceId: state.workspaceId, channelId: general }, resolve)
-  );
-  await until(async () => serverHasRoom(`channel:${general}`, reconnected.id), { label: "rejoin after reconnect" });
+  const rejoined = await joinChannel(reconnected, { workspaceId: state.workspaceId, channelId: general });
+  assert.equal(rejoined.joined, true, "the room should be joinable again after reconnecting");
+  const afterReconnect = watch(reconnected, "message:channel");
+  const live2 = await api("POST", `/api/workspaces/${state.workspaceId}/messages`, {
+    token: tokens.ada,
+    body: { channelId: general, content: "after the reconnect" },
+  });
+  assert.equal(live2.status, 201);
+  await until(async () => afterReconnect.some((m) => m.id === live2.json.message.id), {
+    label: "live delivery resumes after reconnecting",
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -7,14 +7,17 @@ import { ProtectedRoute } from "@/components/auth/RouteGuards";
 import { useAuth } from "@/context/AuthContext";
 import { useResource } from "@/hooks/useResource";
 import "../workspace.css";
-import { PlusIcon, GridIcon, BoardIcon, UsersIcon, ClockIcon } from "@/components/workspace/icons";
-import Avatar from "@/components/workspace/Avatar";
+import { PlusIcon, GridIcon, BoardIcon, ClockIcon, ListTasksIcon, BellIcon } from "@/components/workspace/icons";
 import EmptyState from "@/components/workspace/EmptyState";
 import ActivityFeed from "@/components/workspace/ActivityFeed";
 import ProgressBar from "@/components/workspace/ProgressBar";
 import TaskItem from "@/components/workspace/TaskItem";
 import WorkspaceForm from "@/components/workspace/WorkspaceForm";
 import GlobalNav from "@/components/workspace/GlobalNav";
+import StatCards from "@/components/workspace/Dashboard/StatCards";
+import MyTasks from "@/components/workspace/Dashboard/MyTasks";
+import RecentlyViewed from "@/components/workspace/Dashboard/RecentlyViewed";
+import NotificationsPanel from "@/components/workspace/Dashboard/NotificationsPanel";
 
 function greeting() {
   const hour = new Date().getHours();
@@ -25,12 +28,22 @@ function greeting() {
 }
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const { data, loading } = useResource("/me/overview");
+  // Phase 20: the personalised figures (projects / my tasks / progress /
+  // recently viewed) come from their own endpoint so a failure there degrades
+  // one section instead of blanking the whole page.
+  const {
+    data: dashData,
+    loading: dashLoading,
+    error: dashError,
+    refetch: refetchDashboard,
+  } = useResource("/me/dashboard");
   const [showCreate, setShowCreate] = useState(false);
 
   const overview = data?.overview;
+  const dashboard = dashData?.dashboard;
   const dueSoon = overview?.dueSoonTasks || [];
   const overdue = overview?.overdueTasks || [];
   const tasks = overview?.inProgressTasks || [];
@@ -38,8 +51,17 @@ export default function DashboardPage() {
   const projects = useMemo(() => overview?.projects || [], [overview]);
   const activity = overview?.recentActivity || [];
 
-  const firstName = user?.name?.split(" ")[0] || "there";
-  const workCount = new Set([...dueSoon, ...overdue, ...tasks].map((t) => t.id)).size;
+  // The name comes from the authenticated session, never a constant. While the
+  // session is still resolving `user` is null, so the greeting waits rather
+  // than briefly showing someone else's name or a wrong fallback.
+  const firstName = user?.name?.trim()?.split(/\s+/)[0] || "";
+  const greetingName = firstName || "there";
+  const showGreeting = !authLoading && Boolean(user);
+
+  // The stat row is loading until the dashboard request settles, so the cards
+  // never render a placeholder 0 that would contradict the real figures a
+  // moment later.
+  const cardsPending = dashLoading || (!dashboard && !dashError);
   const projectProgress = useMemo(
     () => ({
       active: projects.filter((p) => p.status !== "COMPLETED" && p.status !== "ARCHIVED").length,
@@ -53,15 +75,6 @@ export default function DashboardPage() {
     [projects]
   );
 
-  const stats = useMemo(
-    () => [
-      { icon: <GridIcon size={18} />, label: "Workspaces", value: workspaces.length, color: "#3b82f6" },
-      { icon: <BoardIcon size={18} />, label: "Active tasks", value: workCount, color: "#a855f7" },
-      { icon: <ClockIcon size={18} />, label: "Due this week", value: dueSoon.length, color: "#eab308" },
-      { icon: <UsersIcon size={18} />, label: "Team size", value: workspaces.reduce((sum, ws) => sum + (ws.stats?.memberCount || 0), 0), color: "#22c55e" },
-    ],
-    [workspaces, workCount, dueSoon.length]
-  );
   async function handleCreateWorkspace(form, runFn) {
     const { data: created, error } = await runFn("/workspaces", {
       method: "POST",
@@ -92,7 +105,8 @@ export default function DashboardPage() {
                 })}
               </p>
               <h1 className="mt-1 text-[26px] font-semibold tracking-tight text-white">
-                {greeting()}, {firstName}.
+                {greeting()}
+                {showGreeting ? `, ${greetingName}.` : "."}
               </h1>
               <p className="mt-1 text-[14px] text-zinc-400">
                 Here&apos;s what&apos;s happening across your workspaces.
@@ -107,6 +121,86 @@ export default function DashboardPage() {
             </button>
           </header>
 
+          {/* ----------------------------------------------------------
+              Phase 20 — personalised overview.
+
+              Deliberately outside the `/me/overview` loading branch below:
+              these panels come from `/me/dashboard`, so a slow or failing
+              overview request must not hide them, and vice versa.
+              ---------------------------------------------------------- */}
+          {dashError ? (
+            <div
+              className="mt-8 flex flex-col items-center rounded-2xl border border-red-500/25 bg-red-500/[0.06] px-6 py-8 text-center"
+              role="alert"
+            >
+              <p className="text-[14px] font-semibold text-red-200">
+                We couldn&apos;t load your dashboard
+              </p>
+              <p className="mt-1.5 max-w-sm text-[12.5px] text-red-200/70">
+                {dashError?.message || "Something went wrong fetching your data."}
+              </p>
+              <button
+                type="button"
+                onClick={refetchDashboard}
+                className="mt-4 rounded-lg bg-white px-3.5 py-2 text-[13px] font-semibold text-zinc-950 transition-colors hover:bg-zinc-200"
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <>
+              <section className="mt-8">
+                <StatCards stats={dashboard?.stats} loading={cardsPending} />
+              </section>
+
+              <div className="mt-8 grid gap-6 lg:grid-cols-3">
+                <div className="space-y-6 lg:col-span-2">
+                  <section>
+                    <div className="mb-3 flex items-center justify-between">
+                      <h2 className="flex items-center gap-2 text-[14px] font-semibold text-white">
+                        <ListTasksIcon size={15} /> My tasks
+                      </h2>
+                      <Link
+                        href="/tasks"
+                        className="text-[12px] text-zinc-500 transition-colors hover:text-white"
+                      >
+                        View all
+                      </Link>
+                    </div>
+                    <MyTasks tasks={dashboard?.myTasks} loading={cardsPending} />
+                  </section>
+
+                  <section>
+                    <div className="mb-3 flex items-center justify-between">
+                      <h2 className="flex items-center gap-2 text-[14px] font-semibold text-white">
+                        <ClockIcon size={15} /> Recently viewed
+                      </h2>
+                      <Link
+                        href="/projects"
+                        className="text-[12px] text-zinc-500 transition-colors hover:text-white"
+                      >
+                        All projects
+                      </Link>
+                    </div>
+                    <RecentlyViewed
+                      projects={dashboard?.recentlyViewed}
+                      loading={cardsPending}
+                    />
+                  </section>
+                </div>
+
+                <section>
+                  <div className="mb-3 flex items-center justify-between">
+                    <h2 className="flex items-center gap-2 text-[14px] font-semibold text-white">
+                      <BellIcon size={15} /> Notifications
+                    </h2>
+                  </div>
+                  <NotificationsPanel />
+                </section>
+              </div>
+            </>
+          )}
+
           {loading && !overview ? (
             <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {[1, 2, 3, 4].map((i) => (
@@ -115,29 +209,6 @@ export default function DashboardPage() {
             </div>
           ) : (
             <>
-              <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {stats.map((stat) => (
-                  <div
-                    key={stat.label}
-                    className="ws-card flex items-center gap-4 rounded-2xl p-4.5"
-                    style={{ padding: "18px" }}
-                  >
-                    <span
-                      className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10"
-                      style={{ color: stat.color, backgroundColor: `${stat.color}14` }}
-                    >
-                      {stat.icon}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-[24px] font-bold leading-none text-white">{stat.value}</p>
-                      <p className="mt-1.5 truncate text-[12px] font-medium uppercase tracking-wide text-zinc-500">
-                        {stat.label}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </section>
-
               <section className="mt-8">
                 <div className="mb-3 flex items-center justify-between">
                   <h2 className="text-[14px] font-semibold text-white">Project progress</h2>
