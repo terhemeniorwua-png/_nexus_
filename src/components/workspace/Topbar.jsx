@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { NexusLogo } from "@/components/NexusLogo";
 import { useNotifications } from "@/hooks/useNotifications";
-import { BellIcon, ArrowLeftIcon, LogOutIcon, SparkIcon, MenuIcon } from "./icons";
+import { BellIcon, ArrowLeftIcon, LogOutIcon, SparkIcon, MenuIcon, SettingsIcon } from "./icons";
 import Avatar from "./Avatar";
 import { GlobalNavLinks } from "./GlobalNav";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
@@ -105,10 +105,23 @@ export default function Topbar({ workspaceName, backHref = "/dashboard", onOpenN
                   <p className="truncate text-[13.5px] font-semibold text-white">{user?.name}</p>
                   <p className="truncate font-mono text-[11.5px] text-zinc-500">{user?.email}</p>
                 </div>
+                {/* Leaving the workspace shell for a global page: the drawer has
+                    to be put away as well, or it would still be covering the
+                    screen on arrival. */}
+                <Link
+                  href="/settings"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    if (onOpenNav) onOpenNav();
+                  }}
+                  className="mt-1 flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
+                >
+                  <SettingsIcon size={15} /> Settings
+                </Link>
                 <Link
                   href="/notifications"
                   onClick={() => setMenuOpen(false)}
-                  className="mt-1 flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
+                  className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
                 >
                   <SparkIcon size={15} /> Notifications
                 </Link>

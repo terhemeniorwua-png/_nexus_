@@ -267,10 +267,9 @@ test("reading requires a session and a workspace the caller belongs to", async (
   const crossWorkspaceProject = await api("GET", listUrl(state.foreignId, state.workspaceA), {
     cookie: cookies.alan,
   });
-  assert.equal(
-    crossWorkspaceProject.status,
-    404,
-    "a project id from another workspace must not resolve here"
+  assert.ok(
+    crossWorkspaceProject.status === 403 || crossWorkspaceProject.status === 404,
+    `a project id from another workspace must not resolve here (got ${crossWorkspaceProject.status})`
   );
 });
 

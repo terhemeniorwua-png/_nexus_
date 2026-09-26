@@ -8,7 +8,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { NexusLogo } from "@/components/NexusLogo";
 import Avatar from "./Avatar";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { HomeIcon, ListTasksIcon, BellIcon, GridIcon, BoardIcon, LogOutIcon, SparkIcon } from "./icons";
+import { HomeIcon, ListTasksIcon, BellIcon, GridIcon, BoardIcon, LogOutIcon, SparkIcon, SettingsIcon } from "./icons";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Home", icon: <HomeIcon size={16} /> },
@@ -132,6 +132,13 @@ export default function GlobalNav() {
                       <SparkIcon size={15} /> Manager dashboard
                     </Link>
                   )}
+                  <Link
+                    href="/settings"
+                    onClick={() => setMenuOpen(false)}
+                    className="mt-1 flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
+                  >
+                    <SettingsIcon size={15} /> Settings
+                  </Link>
                   <Link
                     href="/notifications"
                     onClick={() => setMenuOpen(false)}
