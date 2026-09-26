@@ -42,7 +42,7 @@ const Notification = require("../src/models/notification.model");
 const app = require("../src/app");
 
 const PASSWORD = "Password123!";
-const NAMES = ["ada", "alan", "linus", "margaret", "outsider", "fresh"];
+const NAMES = ["ada", "alan", "linus", "margaret", "bystander", "outsider", "fresh"];
 
 let server;
 let base;
@@ -106,6 +106,9 @@ async function buildFixtures() {
     { workspaceId: wsA._id, userId: users.alan._id, role: "Admin" },
     { workspaceId: wsA._id, userId: users.linus._id, role: "Member" },
     { workspaceId: wsA._id, userId: users.margaret._id, role: "Member" },
+    // A workspace Member who is in no project at all and manages none. Reach
+    // for this user must be zero even though the workspace is real.
+    { workspaceId: wsA._id, userId: users.bystander._id, role: "Member" },
   ]);
 
   const platform = await Project.create({
@@ -248,6 +251,7 @@ before(async () => {
   await login("alan@acme.test");
   await login("linus@acme.test");
   await login("margaret@acme.test");
+  await login("bystander@acme.test");
   await login("outsider@acme.test");
   await login("fresh@acme.test");
 });
@@ -351,13 +355,21 @@ test("the project count follows project reach, not workspace membership", async 
   const linus = await dashboardFor("linus");
   assert.equal(linus.json.dashboard.stats.projects, 2, "linus reaches both by membership/management");
 
-  // margaret is a workspace Member but in neither project, so she reaches none.
+  // margaret reaches Platform because she is a member *of that project*, not
+  // because she is in the workspace — the fixture gives her no other project.
   const margaret = await dashboardFor("margaret");
+  assert.equal(margaret.json.dashboard.stats.projects, 1);
+
+  // bystandander is a Member of the same workspace and reaches nothing: the
+  // workspace being theirs does not put its projects on their dashboard.
+  const bystander = await dashboardFor("bystander");
   assert.equal(
-    margaret.json.dashboard.stats.projects,
+    bystander.json.dashboard.stats.projects,
     0,
     "workspace membership alone must not put a project on the dashboard"
   );
+  assert.equal(bystander.json.dashboard.stats.tasks, 0);
+  assert.deepEqual(bystander.json.dashboard.myTasks, []);
 });
 
 test("a project is never counted twice for someone who both owns and manages it", async () => {

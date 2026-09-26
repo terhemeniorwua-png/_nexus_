@@ -8,6 +8,12 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  // Phase 21 — server-derived capability flags (currently: whether this user
+  // manages at least one project). Kept beside `user` rather than inside it
+  // because they are not user fields: they are a fact about the user's
+  // relationships, and they must not be mistaken for something a client may set.
+  // `/api/auth/me` already returns them, so this costs no extra request.
+  const [capabilities, setCapabilities] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -16,9 +22,15 @@ export function AuthProvider({ children }) {
     async function restoreSession() {
       try {
         const data = await apiRequest(AUTH_ENDPOINTS.me);
-        if (active) setUser(data.user);
+        if (active) {
+          setUser(data.user);
+          setCapabilities(data.capabilities || null);
+        }
       } catch {
-        if (active) setUser(null);
+        if (active) {
+          setUser(null);
+          setCapabilities(null);
+        }
       } finally {
         if (active) setLoading(false);
       }
@@ -51,9 +63,11 @@ export function AuthProvider({ children }) {
     try {
       const data = await apiRequest(AUTH_ENDPOINTS.me);
       setUser(data.user);
+      setCapabilities(data.capabilities || null);
       return data.user;
     } catch {
       setUser(null);
+      setCapabilities(null);
       return null;
     }
   }, []);
@@ -64,6 +78,7 @@ export function AuthProvider({ children }) {
       body: { email, password },
     });
     setUser(data.user);
+    setCapabilities(data.capabilities || null);
     if (data.token) {
       localStorage.setItem("token", data.token);
       localStorage.setItem("accessToken", data.token);
@@ -77,6 +92,7 @@ export function AuthProvider({ children }) {
       body: payload,
     });
     setUser(data.user);
+    setCapabilities(data.capabilities || null);
     if (data.token) {
       localStorage.setItem("token", data.token);
       localStorage.setItem("accessToken", data.token);
@@ -92,12 +108,15 @@ export function AuthProvider({ children }) {
       localStorage.removeItem("accessToken");
       disconnectSocket();
       setUser(null);
+      setCapabilities(null);
     }
   }, []);
 
   const value = useMemo(
     () => ({
       user,
+      capabilities,
+      canManageProjects: Boolean(capabilities?.canManageProjects),
       loading,
       isAuthenticated: Boolean(user),
       login,
@@ -105,7 +124,7 @@ export function AuthProvider({ children }) {
       logout,
       refreshUser,
     }),
-    [user, loading, login, register, logout, refreshUser]
+    [user, capabilities, loading, login, register, logout, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

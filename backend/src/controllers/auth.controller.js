@@ -1,5 +1,8 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/user.model");
+const {
+  canManageProjects: canManageProjectsFor,
+} = require("../services/project.service");
 const { validateRegisterInput, validateLoginInput } = require("../validators/auth.validator");
 const { COOKIE_NAME } = require("../middleware/authenticate");
 
@@ -28,6 +31,26 @@ function clearAuthCookie(res) {
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     path: "/",
   });
+}
+
+/**
+ * Phase 21 — the capability flags the client needs to render its navigation.
+ *
+ * Returned by every endpoint that hands back a session (register, login, me) so
+ * the client never has to follow a fresh sign-in with a second request just to
+ * find out whether to show the manager dashboard.
+ *
+ * A failure here is never worth failing authentication over: the worst outcome
+ * is a missing navigation item, and the dashboard endpoint re-checks and
+ * answers 403 regardless.
+ */
+async function sessionCapabilities(userId) {
+  try {
+    return { canManageProjects: await canManageProjectsFor(userId) };
+  } catch (err) {
+    console.error("[auth] manager capability check failed:", err.message);
+    return { canManageProjects: false };
+  }
 }
 
 async function register(req, res, next) {
@@ -74,6 +97,7 @@ async function register(req, res, next) {
       message: "Account created successfully",
       token,
       user: user.toJSON(),
+      capabilities: await sessionCapabilities(user._id),
     });
   } catch (err) {
     next(err);
@@ -109,6 +133,7 @@ async function login(req, res, next) {
       message: "Signed in successfully",
       token,
       user: user.toJSON(),
+      capabilities: await sessionCapabilities(user._id),
     });
   } catch (err) {
     next(err);
@@ -167,7 +192,21 @@ async function me(req, res, next) {
     if (!user) {
       return res.status(401).json({ success: false, message: "Authentication required" });
     }
-    return res.json({ success: true, user: user.toJSON() });
+
+    // Phase 21 — whether to show the manager dashboard in the nav.
+    //
+    // Computed here, on the endpoint every page already calls, rather than from
+    // a fetch the navigation triggers for itself. `user.role` is *not* used:
+    // it is a global label that nothing in the authorisation system reads, so a
+    // user who manages a project while holding the "MEMBER" role would
+    // otherwise be denied the link to their own dashboard. This is derived from
+    // the real project scope, and a failure only hides a navigation item — the
+    // dashboard endpoint re-checks and returns 403 either way.
+    return res.json({
+      success: true,
+      user: user.toJSON(),
+      capabilities: await sessionCapabilities(user._id),
+    });
   } catch (err) {
     next(err);
   }

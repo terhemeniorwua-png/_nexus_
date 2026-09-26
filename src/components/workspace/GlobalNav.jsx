@@ -8,23 +8,30 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { NexusLogo } from "@/components/NexusLogo";
 import Avatar from "./Avatar";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { HomeIcon, ListTasksIcon, BellIcon, GridIcon, BoardIcon, LogOutIcon } from "./icons";
+import { HomeIcon, ListTasksIcon, BellIcon, GridIcon, BoardIcon, LogOutIcon, SparkIcon } from "./icons";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Home", icon: <HomeIcon size={16} /> },
   { href: "/tasks", label: "My Tasks", icon: <ListTasksIcon size={16} /> },
   { href: "/projects", label: "Projects", icon: <BoardIcon size={16} /> },
+  // Phase 21 — shown only to users who actually manage a project. The flag
+  // comes from the server (`/api/auth/me`), which derives it from the same
+  // permission the manager dashboard enforces; a user without it sees no link,
+  // and following the URL anyway returns a clear 403 rather than data.
+  { href: "/dashboard/manager", label: "Manager", icon: <SparkIcon size={16} />, managerOnly: true },
   { href: "/notifications", label: "Notifications", icon: <BellIcon size={16} /> },
   { href: "/workspaces", label: "Workspaces", icon: <GridIcon size={16} /> },
 ];
 
-export function GlobalNavLinks({ className = "" }) {
+export function GlobalNavLinks({ className = "", canManageProjects = false }) {
   const pathname = usePathname();
   const { unreadCount } = useNotifications();
 
+  const items = NAV_ITEMS.filter((item) => !item.managerOnly || canManageProjects);
+
   return (
     <nav className={`flex items-center gap-1 ${className}`} aria-label="Global navigation">
-      {NAV_ITEMS.map((item) => {
+      {items.map((item) => {
         const active =
           pathname === item.href ||
           (item.href === "/workspaces" && pathname.startsWith("/workspaces/")) ||
@@ -52,10 +59,14 @@ export function GlobalNavLinks({ className = "" }) {
 }
 
 export default function GlobalNav() {
-  const { user, logout } = useAuth();
+  const { user, logout, canManageProjects } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const router = useRouter();
+
+  // Phase 21: the session endpoint reports whether this user manages a project,
+  // so the Manager link costs no extra request and cannot drift from the
+  // dashboard's own authorisation.
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -67,6 +78,8 @@ export default function GlobalNav() {
     }
   }
 
+  // Phase 21 — same reasoning: the user menu carries the same gate, so the
+  // Manager entry is offered in both places or neither.
   return (
     <header className="sticky top-0 z-30 border-b border-white/10 bg-[var(--header-bg)] backdrop-blur-md">
       <div className="flex h-16 shrink-0 items-center justify-between gap-4 px-4 md:px-6">
@@ -76,7 +89,7 @@ export default function GlobalNav() {
         </Link>
 
         <div className="hidden lg:block">
-          <GlobalNavLinks />
+          <GlobalNavLinks canManageProjects={canManageProjects} />
         </div>
 
         <div className="flex flex-1 items-center justify-end gap-2.5">
@@ -110,6 +123,15 @@ export default function GlobalNav() {
                   >
                     <ListTasksIcon size={15} /> My Tasks
                   </Link>
+                  {canManageProjects && (
+                    <Link
+                      href="/dashboard/manager"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
+                    >
+                      <SparkIcon size={15} /> Manager dashboard
+                    </Link>
+                  )}
                   <Link
                     href="/notifications"
                     onClick={() => setMenuOpen(false)}
@@ -133,7 +155,7 @@ export default function GlobalNav() {
       </div>
 
       <div className="overflow-x-auto border-t border-white/8 px-3 py-1.5 lg:hidden ws-scroll">
-        <GlobalNavLinks />
+        <GlobalNavLinks canManageProjects={canManageProjects} />
       </div>
     </header>
   );

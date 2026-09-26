@@ -16,8 +16,20 @@ const Task = require("../models/task.model");
 const Project = require("../models/project.model");
 const { ApiError } = require("../middleware/errorHandler");
 const { calculateProjectProgress } = require("./progress.service");
+const {
+  PROJECT_ROLES,
+  hasProjectPermission,
+  workspaceRole,
+} = require("../permissions/permissions");
 
 const { STATUSES, PRIORITIES } = Project;
+
+/**
+ * Phase 21 — the permission that defines "may manage a project". It is the
+ * gate in front of the deliverable review routes, so using it here keeps the
+ * manager dashboard and the review actions it offers in lockstep.
+ */
+const MANAGE_PROJECT_ACTION = "review_deliverable";
 
 // ---------------------------------------------------------------------------
 // Date helpers
@@ -353,6 +365,113 @@ async function accessibleProjectScope(me) {
   return { workspaceIds, projects, roleByWorkspace, ownedIds };
 }
 
+/**
+ * Phase 21 — the subset of `accessibleProjectScope` the user actually manages.
+ *
+ * "Manages" is not a new role check: it is defined as *holding the review
+ * permission* on the project, i.e. the same gate the deliverable/task review
+ * routes already enforce. Reusing the permission table means the manager
+ * dashboard can never be more permissive than the actions it links to — a user
+ * who is refused `PATCH /deliverables/:id/versions/:n/approve` is also refused
+ * the analytics that feed that button. Only PROJECT_MANAGER, and the derived
+ * WORKSPACE_OWNER / ADMIN roles, satisfy it; MEMBER, COLLABORATOR and VIEWER
+ * never do.
+ *
+ * Role resolution mirrors `resolveProjectRole` exactly (membership first, then
+ * `managerId`, then the workspace-derived owner/admin roles) and resolves the
+ * whole set in one extra query instead of one lookup per project.
+ */
+async function managedProjectScope(me) {
+  const scope = await accessibleProjectScope(me);
+  const { projects, roleByWorkspace, ownedIds } = scope;
+
+  if (projects.length === 0) {
+    return { ...scope, projects: [], managedProjectIds: [] };
+  }
+
+  const memberships = await ProjectMember.find({
+    userId: me._id,
+    projectId: { $in: projects.map((p) => p._id) },
+  }).select("projectId role");
+
+  const memberRoleByProject = new Map(
+    memberships.map((m) => [String(m.projectId), m.role])
+  );
+
+  const owned = new Set([...ownedIds].map(String));
+
+  const managed = projects.filter((project) => {
+    const membershipRole = memberRoleByProject.get(String(project._id));
+    const workspaceRoleValue = workspaceRole(
+      roleByWorkspace[String(project.workspaceId)],
+      owned.has(String(project.workspaceId))
+    );
+
+    // Precedence identical to resolveProjectRole: an explicit ProjectMember row
+    // wins over being the project's managerId, which wins over inheriting the
+    // workspace role.
+    const role =
+      membershipRole ||
+      (project.managerId && String(project.managerId) === String(me._id)
+        ? PROJECT_ROLES.PROJECT_MANAGER
+        : null) ||
+      workspaceRoleValue;
+
+    return Boolean(role) && hasProjectPermission(role, MANAGE_PROJECT_ACTION);
+  });
+
+  return {
+    ...scope,
+    projects: managed,
+    managedProjectIds: managed.map((p) => p._id),
+  };
+}
+
+/**
+ * Phase 21 — is this user a project manager anywhere?
+ *
+ * The same question `managedProjectScope` answers, asked as an existence test
+ * so the session endpoint can answer it without loading every project. It
+ * short-circuits on the two cases that cover almost every manager, using
+ * indexes (`ProjectMember.userId`, `Project.managerId`), and only falls back to
+ * the workspace join for owners and admins.
+ *
+ * It must agree with `managedProjectScope`; `managerDashboard.test.js` asserts
+ * that on a fixture set, because a nav link that disagrees with the page it
+ * opens is a bug in one place or the other.
+ */
+async function canManageProjects(userId) {
+  // 1. An explicit PROJECT_MANAGER membership, or being a project's managerId.
+  const [isMemberManager, isManagerOfProject] = await Promise.all([
+    ProjectMember.exists({ userId, role: PROJECT_ROLES.PROJECT_MANAGER }),
+    Project.exists({ managerId: userId }),
+  ]);
+  if (isMemberManager || isManagerOfProject) return true;
+
+  // 2. Workspace owners/admins inherit project permissions — but only in
+  //    projects where they hold no ProjectMember row of their own, because an
+  //    explicit membership (VIEWER included) outranks the inherited role.
+  const [ownedWorkspaces, adminMemberships, memberships] = await Promise.all([
+    Workspace.find({ ownerId: userId }).select("_id"),
+    WorkspaceMember.find({ userId, role: "Admin" }).select("workspaceId"),
+    ProjectMember.find({ userId }).select("projectId"),
+  ]);
+
+  const workspaceIds = [
+    ...new Set(
+      [...ownedWorkspaces.map((w) => String(w._id)), ...adminMemberships.map((m) => String(m.workspaceId))]
+    ),
+  ];
+  if (workspaceIds.length === 0) return false;
+
+  return Boolean(
+    await Project.exists({
+      workspaceId: { $in: workspaceIds },
+      _id: { $nin: memberships.map((m) => m.projectId) },
+    })
+  );
+}
+
 module.exports = {
   STATUSES,
   PRIORITIES,
@@ -365,4 +484,7 @@ module.exports = {
   computeProjectStats,
   getProjectMembers,
   accessibleProjectScope,
+  managedProjectScope,
+  canManageProjects,
+  MANAGE_PROJECT_ACTION,
 };
