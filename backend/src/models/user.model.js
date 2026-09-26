@@ -71,6 +71,9 @@ userSchema.set("toJSON", {
     delete ret._id;
     delete ret.__v;
     delete ret.password;
+    // Session bookkeeping, not profile data — it is compared against a token's
+    // `iat` in the authenticate middleware and has no business in any payload.
+    delete ret.passwordChangedAt;
     return ret;
   },
 });
@@ -81,6 +84,7 @@ userSchema.set("toObject", {
     delete ret._id;
     delete ret.__v;
     delete ret.password;
+    delete ret.passwordChangedAt;
     return ret;
   },
 });

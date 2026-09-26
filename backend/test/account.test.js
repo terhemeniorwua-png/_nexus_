@@ -92,6 +92,16 @@ function cookieFor(email) {
   return `nexus_token=${state.tokens[email]}`;
 }
 
+// Tests below deliberately invalidate sessions, so each one signs the user in
+// again rather than reusing the token captured in before(): after a password
+// change those older tokens are refused by design, which is the point the
+// dedicated tests make.
+async function freshCookie(email, password = PASSWORD) {
+  const res = await login(email, password);
+  assert.equal(res.status, 200, `login failed for ${email}`);
+  return res.cookie;
+}
+
 before(async () => {
   await mongoose.connect(process.env.MONGO_URI);
   await mongoose.connection.dropDatabase();
@@ -344,8 +354,8 @@ test("POST /api/auth/change-password swaps the password and re-issues the sessio
 });
 
 test("a password change leaves other accounts' sessions alone", async () => {
-  const adaCookie = cookieFor("ada@acme.test");
-  const alanCookie = cookieFor("alan@acme.test");
+  const adaCookie = await freshCookie("ada@acme.test");
+  const alanCookie = await freshCookie("alan@acme.test");
 
   const res = await api("POST", "/api/auth/change-password", {
     cookie: alanCookie,
@@ -368,8 +378,9 @@ test("passwordChangedAt is stamped on change and survives a sign-in", async () =
   const ada = await User.findById(state.ada._id);
   assert.ok(ada.passwordChangedAt instanceof Date, "registration stamps the field");
 
+  const adaCookie = await freshCookie("ada@acme.test");
   const res = await api("POST", "/api/auth/change-password", {
-    cookie: cookieFor("ada@acme.test"),
+    cookie: adaCookie,
     body: { currentPassword: PASSWORD, newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD },
   });
   assert.equal(res.status, 200);
@@ -396,7 +407,7 @@ test("passwordChangedAt is stamped on change and survives a sign-in", async () =
 });
 
 test("GET /api/auth/me never exposes the password or the hash timestamp", async () => {
-  const res = await api("GET", "/api/auth/me", { cookie: cookieFor("ada@acme.test") });
+  const res = await api("GET", "/api/auth/me", { cookie: await freshCookie("ada@acme.test") });
   assert.equal(res.status, 200);
   assert.equal(res.json.user.password, undefined);
   assert.equal(res.json.user.passwordChangedAt, undefined);
