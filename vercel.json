@@ -1,9 +1,36 @@
-{
-  "version": 2,
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "src/server.js"
-    }
-  ]
+
+
+  {
+    "version": 2,
+    "services": {
+        "frontend": {
+            "root": ".",
+            "framework": "nextjs"
+        },
+        "backend": {
+            "root": "backend"
+        },
+        
+          "src": "backend",
+          "framework": "express",
+          "runtime": "node",
+          "entrypoint": "server.js"
+        
+    },
+    "rewrites": [
+        {
+            "source": "/api/backend(/.*)?",
+            "destination": {
+                "type": "service",
+                "service": "backend"
+            }
+        },
+        {
+            "source": "/(.*)",
+            "destination": {
+                "type": "service",
+                "service": "frontend"
+            }
+        }
+    ]
 }
