@@ -35,14 +35,7 @@ function clearAuthCookie(res) {
 
 /**
  * Phase 21 — the capability flags the client needs to render its navigation.
- *
- * Returned by every endpoint that hands back a session (register, login, me) so
- * the client never has to follow a fresh sign-in with a second request just to
- * find out whether to show the manager dashboard.
- *
- * A failure here is never worth failing authentication over: the worst outcome
- * is a missing navigation item, and the dashboard endpoint re-checks and
- * answers 403 regardless.
+
  */
 async function sessionCapabilities(userId) {
   try {

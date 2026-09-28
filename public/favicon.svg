@@ -1,15 +1,41 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="7" fill="#2563EB"/>
-  <g stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" fill="none">
-    <path d="M9 9 L9 23"/>
-    <path d="M9 9 L23 23"/>
-    <path d="M23 9 L23 23"/>
-    <path d="M9 23 L15.4 16.6"/>
-    <path d="M15.4 16.6 L23 9"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Nexus">
+  <!--
+    The brand mark. Every coordinate here is copied from the logo component
+    (src/components/NexusLogo.jsx) rather than redrawn, so the tab icon is
+    provably the same glyph and not an approximation of it. Keep the two in
+    step: change LOGO_POINTS there and this must follow.
+  -->
+  <style>
+    .stroke { stroke: #2563EB; }
+    .dot { fill: #2563EB; }
+
+    /*
+      The logo is brand blue on a transparent background, which is how it
+      appears in the app. A browser tab, though, is the browser's background
+      and not ours: on a dark tab bar #2563EB is low contrast, so lift the
+      glyph for dark chrome only. Browsers that do not evaluate media queries
+      in a favicon simply keep the brand blue, so this degrades to the plain
+      logo rather than to nothing.
+    */
+    @media (prefers-color-scheme: dark) {
+      .stroke { stroke: #60A5FA; }
+      .dot { fill: #60A5FA; }
+    }
+  </style>
+
+  <g fill="none" stroke-width="2.4" stroke-linecap="round">
+    <path class="stroke" d="M8 8 L8 25" />
+    <path class="stroke" d="M8 8 L24 25" />
+    <path class="stroke" d="M24 8 L24 25" />
+    <path class="stroke" d="M8 25 L16 16" />
+    <path class="stroke" d="M16 16 L24 8" />
   </g>
-  <circle cx="9" cy="9" r="2" fill="#FFFFFF"/>
-  <circle cx="9" cy="23" r="2" fill="#FFFFFF"/>
-  <circle cx="23" cy="9" r="2" fill="#FFFFFF"/>
-  <circle cx="23" cy="23" r="2" fill="#FFFFFF"/>
-  <circle cx="15.4" cy="16.6" r="2.3" fill="#FFFFFF"/>
+
+  <g>
+    <circle class="dot" cx="8" cy="8" r="2.4" />
+    <circle class="dot" cx="8" cy="25" r="2.4" />
+    <circle class="dot" cx="24" cy="8" r="2.4" />
+    <circle class="dot" cx="24" cy="25" r="2.4" />
+    <circle class="dot" cx="16" cy="16" r="2.8" />
+  </g>
 </svg>
