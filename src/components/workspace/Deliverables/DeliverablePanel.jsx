@@ -9,6 +9,7 @@ import { useMutation, useResource } from "@/hooks/useResource";
 import { useSocketEvent, useSocketResync } from "@/hooks/useSocket";
 import { SOCKET_EVENTS } from "@/lib/socketEvents";
 import {
+  API_URL,
   CONTRIBUTOR_ROLES,
   DELIVERABLE_ACCEPT,
   DELIVERABLE_ENDPOINTS,
@@ -501,7 +502,7 @@ export default function DeliverablePanel({
                       isLatest={version.isCurrent}
                       onDownload={() => {
                         window.open(
-                          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"}${toApiPath(
+                          `${API_URL}${toApiPath(
                             DELIVERABLE_ENDPOINTS.download(deliverable.id, version.versionNumber)
                           )}`,
                           "_blank",

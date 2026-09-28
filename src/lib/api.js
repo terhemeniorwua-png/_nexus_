@@ -1,7 +1,22 @@
 // The backend's own .env sets PORT=5100, so that is the default here — a default
 // of 5000 silently points every request at a port nothing is listening on.
 // Override with NEXT_PUBLIC_API_URL for any other host or port.
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5100/api";
+//
+// Every route in this API is mounted under /api. Deriving the suffix here
+// rather than trusting the variable to carry it removes a failure that is
+// indistinguishable from a routing bug: with NEXT_PUBLIC_API_URL set to a bare
+// host, `/auth/me` is requested from `https://host/auth/me` and the backend
+// answers 404 for a route that is in fact mounted at `/api/auth/me`. Append
+// the prefix when it is missing so both spellings work.
+const API_BASE_FALLBACK = "http://localhost:5100/api";
+
+function normalizeApiBase(value) {
+  const trimmed = String(value ?? "").trim().replace(/\/+$/, "");
+  if (!trimmed) return API_BASE_FALLBACK;
+  return /\/api$/i.test(trimmed) ? trimmed : `${trimmed}/api`;
+}
+
+export const API_URL = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL);
 
 export const AUTH_ENDPOINTS = {
   register: "/auth/register",

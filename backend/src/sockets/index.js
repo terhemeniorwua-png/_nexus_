@@ -28,26 +28,33 @@ const presence = require("./presence");
 const { initPresence } = require("./presenceSocket");
 const { initProject } = require("./projectSocket");
 const { initChannel } = require("./channelSocket");
+// Phase 25 — the same origin policy the HTTP layer enforces, from the same
+// module. Before this, the socket layer parsed CLIENT_URL itself and the two
+// could disagree, which showed up as an app whose REST calls worked and whose
+// realtime updates never arrived.
+const {
+  ALLOWED_METHODS,
+  originCallback,
+  configuredOrigins,
+  describePolicy,
+} = require("../config/cors");
 
-/**
- * The trusted frontend origins, taken from the same CLIENT_URL the Express
- * CORS configuration already uses. A comma-separated list is accepted for
- * deployments that serve more than one trusted host; `*` is never used.
- */
+// Retained as a named export: it is the static list for callers that want to
+// inspect the configuration, while the handshake below uses the per-request
+// callback so the development loopback rule applies to sockets too.
 function allowedOrigins() {
-  const configured = process.env.CLIENT_URL || "http://localhost:3000";
-  return configured
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+  return configuredOrigins();
 }
 
 function initSocket(httpServer) {
   const io = new Server(httpServer, {
     cors: {
-      origin: allowedOrigins(),
+      // Dynamic, for the same reason the HTTP layer's is: a per-request
+      // decision is what allows loopback during development without widening
+      // the production policy.
+      origin: originCallback,
       credentials: true,
-      methods: ["GET", "POST"],
+      methods: ALLOWED_METHODS,
     },
     // A dead transport must not be mistaken for a live connection.
     pingTimeout: 20000,
@@ -76,6 +83,8 @@ function initSocket(httpServer) {
   io.engine?.on("connection_error", (error) => {
     console.error("[nexus] Socket transport error:", error?.message || "unknown");
   });
+
+  console.log(`[nexus] CORS policy: ${describePolicy()}`);
 
   return io;
 }

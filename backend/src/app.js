@@ -24,17 +24,42 @@ const knowledgeRoutes = require("./routes/knowledge.route");
 const taskRoutes = require("./routes/task.route");
 const { notFoundHandler, errorHandler } = require("./middleware/errorHandler");
 const { securityHeaders } = require("./middleware/securityHeaders");
+require("dotenv").config()
+
+const {
+  ALLOWED_METHODS,
+  ALLOWED_HEADERS,
+  EXPOSED_HEADERS,
+  originCallback,
+} = require("./config/cors");
+
 
 const app = express();
 
-const clientOrigin = process.env.CLIENT_URL || "http://localhost:3000";
-
 app.disable("x-powered-by");
 app.use(securityHeaders);
+// Phase 25 — CORS. The origin is decided per request from the environment
+// (see config/cors.js) rather than from a hardcoded host, so the same build
+// serves localhost during development and the deployed frontend in
+// production, and a new deployment domain is an environment change only.
 app.use(
   cors({
-    origin: clientOrigin,
+    origin: originCallback,
+    // Required: the session is an HttpOnly cookie, which the browser refuses
+    // to send on a cross-origin request unless this is set. It is also why
+    // `origin` can never be the literal "*" — that combination is rejected by
+    // the browser, so an unlisted origin has to be omitted from the response
+    // headers instead (which is what originCallback does).
     credentials: true,
+    methods: ALLOWED_METHODS,
+    allowedHeaders: ALLOWED_HEADERS,
+    exposedHeaders: EXPOSED_HEADERS,
+    // Preflight results are stable for a day; the policy only changes on
+    // deploy, and without this every request pays for an extra OPTIONS round
+    // trip.
+    maxAge: 86400,
+    // 204 rather than the default 200, so a preflight carries no body.
+    optionsSuccessStatus: 204,
   })
 );
 app.use(express.json());

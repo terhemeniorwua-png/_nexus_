@@ -1,8 +1,11 @@
-import apiRequest from "@/lib/api";
+import apiRequest, { API_URL } from "@/lib/api";
 
 export { apiRequest };
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+// Re-exported from lib/api rather than recomputed from the environment: the
+// base URL and its /api suffix are decided in exactly one place, so the two
+// copies can no longer disagree about the host, the port or the prefix.
+export { API_URL };
 
 export const SOCKET_URL = API_URL.replace(/\/api$/, "");
 

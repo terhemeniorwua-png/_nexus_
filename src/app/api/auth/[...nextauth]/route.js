@@ -1,8 +1,7 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+import { API_URL } from "@/lib/api";
 
 async function authenticateCredentials({ email, password }) {
   try {

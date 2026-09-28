@@ -53,6 +53,8 @@ async function sessionCapabilities(userId) {
   }
 }
 
+
+
 async function register(req, res, next) {
   try {
     const { name, email, password, confirmPassword } = req.body || {};

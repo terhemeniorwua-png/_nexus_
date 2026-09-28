@@ -23,7 +23,7 @@ import {
   knowledgeCategoryLabel,
   knowledgeTypeLabel,
 } from "@/lib/knowledge";
-import { DELIVERABLE_ENDPOINTS, toApiPath, formatRelative } from "@/lib/workspaceApi";
+import { API_URL, DELIVERABLE_ENDPOINTS, toApiPath, formatRelative } from "@/lib/workspaceApi";
 
 function Row({ label, children }) {
   return (
@@ -76,7 +76,7 @@ export default function KnowledgeDetailPage() {
 
   function downloadSourceFile() {
     window.open(
-      `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"}${toApiPath(
+      `${API_URL}${toApiPath(
         DELIVERABLE_ENDPOINTS.download(resource.sourceDeliverableId, resource.sourceVersionNumber)
       )}`,
       "_blank",
