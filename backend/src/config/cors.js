@@ -12,10 +12,13 @@
  * Where the list comes from, in order of precedence:
  *
  *   ALLOWED_ORIGINS   Comma/space separated list of trusted frontend origins.
- *                     The variable to set on Render or any other host.
+ *                     The variable to set on Render or any other host. An
+ *                     entry may also be a glob containing "*", see below.
  *   CLIENT_URL        The original single-origin variable. Still read, and
  *                     MERGED rather than overridden, so an existing deployment
  *                     that only sets CLIENT_URL keeps working untouched.
+ *                     CLIENT_URL is always a single literal origin — it is
+ *                     never treated as a glob.
  *
  * Both are unioned, so a deployment may keep CLIENT_URL for its main host and
  * add preview/staging domains in ALLOWED_ORIGINS without either overwriting
@@ -30,8 +33,19 @@
  * accepted regardless of port. This cannot leak into production: the branch is
  * keyed on NODE_ENV, and production takes the configured list only.
  *
- * `*` is never produced here. It is accepted as an explicit opt-in value
- * because `credentials: true` forbids a literal wildcard, so it means "reflect
+ * A platform like Vercel mints a new random hash for every preview deployment
+ * (nexus-ux2f-<hash>-team.vercel.app), so an exact-match list goes stale on
+ * the very next deploy. An ALLOWED_ORIGINS entry containing "*" is treated as
+ * a glob instead of a literal origin: "*" matches one or more hostname-safe
+ * characters (letters, digits, hyphen), so one entry like
+ * https://nexus-ux2f-*-terhemeniorwua-7466s-projects.vercel.app covers every
+ * current and future preview deploy of that project without further edits.
+ * This is separate from the bare WILDCARD value below, which means something
+ * different (allow any origin at all).
+ *
+ * `*` on its own (the literal value "*", not embedded in a URL) is never
+ * produced here. It is accepted as an explicit opt-in value because
+ * `credentials: true` forbids a literal wildcard, so it means "reflect
  * whatever origin asked" rather than "send *" — and it warns, because a
  * credentialed wildcard is effectively a public API.
  */
@@ -97,6 +111,44 @@ function splitOrigins(value) {
 }
 
 /**
+ * True for a configured ALLOWED_ORIGINS entry that is a glob rather than a
+ * literal origin — i.e. it contains a "*" and is not the bare WILDCARD value
+ * itself (that one is handled separately, see isOriginAllowed).
+ */
+function isGlobPattern(entry) {
+  return typeof entry === "string" && entry !== WILDCARD && entry.includes("*");
+}
+
+/**
+ * Compile one glob entry into a RegExp matching a full origin string.
+ *
+ * "*" becomes "one or more hostname-safe characters" (letters, digits,
+ * hyphen) — enough to match a Vercel deploy hash, not so loose that it
+ * swallows a dot and matches an unrelated subdomain or host. Everything else
+ * in the entry is escaped so a literal "." in the domain stays literal and
+ * is not read as "any character".
+ */
+function globToRegExp(entry) {
+  const escaped = entry
+    .trim()
+    .toLowerCase()
+    .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*/g, "[a-z0-9-]+");
+  return new RegExp(`^${escaped}$`, "i");
+}
+
+/**
+ * Configured ALLOWED_ORIGINS entries that are glob patterns, compiled.
+ * CLIENT_URL is intentionally excluded — per the file header, it is always a
+ * single literal origin, never a pattern.
+ */
+function configuredOriginPatterns(env = process.env) {
+  return splitOrigins(env.ALLOWED_ORIGINS)
+    .filter(isGlobPattern)
+    .map(globToRegExp);
+}
+
+/**
  * True for an origin served by this machine: http://localhost:3000,
  * http://127.0.0.1:5100, http://[::1]:8080, http://app.localhost:3000.
  */
@@ -140,10 +192,14 @@ function isProduction(env = process.env) {
  * Read the configured origins. Both variables are unioned, see the file
  * header. Normalized and de-duplicated, first occurrence winning, so the
  * resulting order is stable and the log line is readable.
+ *
+ * Glob entries in ALLOWED_ORIGINS are excluded here — normalizeOrigin would
+ * mangle or drop a "*" since it isn't a valid URL character, and globs are
+ * matched separately via configuredOriginPatterns.
  */
 function configuredOrigins(env = process.env) {
   const configured = [
-    ...splitOrigins(env.ALLOWED_ORIGINS),
+    ...splitOrigins(env.ALLOWED_ORIGINS).filter((entry) => !isGlobPattern(entry)),
     ...splitOrigins(env.CLIENT_URL),
   ];
 
@@ -177,10 +233,14 @@ function isOriginAllowed(origin, env = process.env) {
     // whatever is configured — a production deployment still trusts nothing
     // beyond its own list, and gains no localhost shortcut from this branch.
     if (!isProduction(env)) return true;
-    return configuredOrigins(env).includes(normalizeOrigin(origin));
+    return (
+      configuredOrigins(env).includes(normalizeOrigin(origin)) ||
+      configuredOriginPatterns(env).some((re) => re.test(origin))
+    );
   }
 
-  return configuredOrigins(env).includes(normalizeOrigin(origin));
+  if (configuredOrigins(env).includes(normalizeOrigin(origin))) return true;
+  return configuredOriginPatterns(env).some((re) => re.test(origin));
 }
 
 /**
@@ -210,8 +270,11 @@ function describePolicy(env = process.env) {
     return "ALLOW_ANY (ALLOWED_ORIGINS contains '*') — credentialed and public";
   }
 
+  const patterns = splitOrigins(env.ALLOWED_ORIGINS).filter(isGlobPattern);
+
   const parts = [];
   if (origins.length) parts.push(origins.join(", "));
+  if (patterns.length) parts.push(`glob: ${patterns.join(", ")}`);
   if (!isProduction(env)) parts.push("+ any loopback origin (development)");
   return parts.length ? parts.join(" | ") : "(none configured)";
 }
@@ -224,6 +287,9 @@ module.exports = {
   EXPOSED_HEADERS: ["Content-Disposition"],
   normalizeOrigin,
   splitOrigins,
+  isGlobPattern,
+  globToRegExp,
+  configuredOriginPatterns,
   isLoopbackOrigin,
   configuredOrigins,
   isOriginAllowed,
