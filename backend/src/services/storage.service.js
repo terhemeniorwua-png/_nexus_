@@ -28,6 +28,16 @@ const { ApiError } = require("../middleware/errorHandler");
 
 const DEFAULT_UPLOAD_DIR = path.join(__dirname, "..", "..", "uploads");
 const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const DEFAULT_AVATAR_MAX_FILE_SIZE = 2 * 1024 * 1024; // 2 MB
+
+// Avatars are limited to the web-safe raster formats. The extension is chosen
+// from the sniffed bytes, never from the client filename.
+const AVATAR_EXTENSION_BY_MIME = {
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+  "image/gif": ".gif",
+  "image/webp": ".webp",
+};
 
 /**
  * Allowed deliverable types (§15). Configurable through
@@ -331,18 +341,101 @@ async function removeStoredFile(storageKey) {
   await fsp.rm(target, { force: true });
 }
 
+function getAvatarsDir() {
+  return path.join(getUploadDir(), "avatars");
+}
+
+function getAvatarMaxFileSize() {
+  const raw = Number(process.env.AVATAR_MAX_FILE_SIZE);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_AVATAR_MAX_FILE_SIZE;
+}
+
+/**
+ * Validate a profile-picture upload. Stricter and smaller than a deliverable:
+ * only images are accepted, the ceiling is a couple of megabytes, and the
+ * format is decided by magic bytes so a renamed file cannot pass as an image.
+ */
+function validateAvatar(file) {
+  if (!file || !file.buffer || !file.buffer.length) {
+    throw new ApiError(400, "An image file is required");
+  }
+
+  const maxSize = getAvatarMaxFileSize();
+  if (file.buffer.length > maxSize) {
+    const mb = (maxSize / (1024 * 1024)).toFixed(1);
+    throw new ApiError(413, `Image is too large (maximum ${mb} MB)`);
+  }
+
+  const declared = String(file.mimetype || "").toLowerCase().split(";")[0].trim();
+  if (!declared.startsWith("image/")) {
+    throw new ApiError(400, "Avatar must be an image file");
+  }
+
+  const signature = detectSignature(file.buffer);
+  if (!signature || !AVATAR_EXTENSION_BY_MIME[signature]) {
+    throw new ApiError(400, "Unsupported or invalid image file");
+  }
+
+  return {
+    mimeType: signature,
+    extension: AVATAR_EXTENSION_BY_MIME[signature],
+    fileSize: file.buffer.length,
+  };
+}
+
+/**
+ * Persist an avatar under uploads/avatars and return the path it is served at.
+ * The filename is generated from the user id plus a random token, so a new
+ * upload never overwrites an older one and the client filename is never used.
+ */
+async function saveAvatar(userId, file) {
+  const validated = validateAvatar(file);
+  const token = crypto.randomBytes(8).toString("hex");
+  const fileName = `${String(userId)}-${token}${validated.extension}`;
+  const storageKey = path.posix.join("avatars", fileName);
+
+  const uploadDir = getUploadDir();
+  const avatarsDir = getAvatarsDir();
+  const target = path.resolve(uploadDir, storageKey);
+
+  if (!target.startsWith(avatarsDir + path.sep)) {
+    throw new ApiError(400, "Invalid file path");
+  }
+
+  try {
+    driver();
+    await fsp.mkdir(avatarsDir, { recursive: true });
+    await fsp.writeFile(target, file.buffer, { flag: "wx" });
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(500, "Could not store the uploaded image");
+  }
+
+  return {
+    storageKey,
+    publicPath: `/uploads/${storageKey}`,
+    mimeType: validated.mimeType,
+    fileSize: validated.fileSize,
+  };
+}
+
 module.exports = {
   DEFAULT_MAX_FILE_SIZE,
+  DEFAULT_AVATAR_MAX_FILE_SIZE,
   DEFAULT_ALLOWED_MIME_TYPES,
   buildStorageKey,
   checksum,
   detectSignature,
   getAllowedMimeTypes,
+  getAvatarMaxFileSize,
+  getAvatarsDir,
   getMaxFileSize,
   getUploadDir,
   openStoredFile,
   removeStoredFile,
   sanitizeFileName,
+  saveAvatar,
   saveUpload,
+  validateAvatar,
   validateUpload,
 };

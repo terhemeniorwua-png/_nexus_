@@ -36,6 +36,21 @@
     var(--shadow-subtle);
 }
 
+/* Profile / navigation dropdowns. Unlike .ws-glass they must read as a solid
+   panel: they render inside the header, whose own backdrop-filter stops a
+   nested one from blurring the page behind it, so a translucent background
+   would let the content underneath show through. The opaque --menu-bg makes
+   the menu genuinely overlap whatever it covers. */
+.ws-menu {
+  background: var(--menu-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 var(--glass-inset),
+    var(--shadow-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
 .ws-card {
   background: var(--card-bg);
   border: 1px solid var(--card-border);

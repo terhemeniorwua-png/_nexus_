@@ -12,7 +12,7 @@
 
 const multer = require("multer");
 const { ApiError } = require("./errorHandler");
-const { getMaxFileSize } = require("../services/storage.service");
+const { getAvatarMaxFileSize, getMaxFileSize } = require("../services/storage.service");
 
 function createDeliverableUpload(fieldName = "file") {
   return multer({
@@ -21,6 +21,18 @@ function createDeliverableUpload(fieldName = "file") {
       fileSize: getMaxFileSize(),
       files: 1,
       fields: 20,
+      fieldSize: 8 * 1024,
+    },
+  }).single(fieldName);
+}
+
+function createAvatarUpload(fieldName = "avatar") {
+  return multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: getAvatarMaxFileSize(),
+      files: 1,
+      fields: 10,
       fieldSize: 8 * 1024,
     },
   }).single(fieldName);
@@ -50,4 +62,23 @@ function handleUploadError(error, _req, _res, next) {
   return next(error);
 }
 
-module.exports = { createDeliverableUpload, handleUploadError };
+function handleAvatarUploadError(error, _req, _res, next) {
+  if (!error) return next();
+
+  if (error instanceof multer.MulterError) {
+    if (error.code === "LIMIT_FILE_SIZE") {
+      const mb = (getAvatarMaxFileSize() / (1024 * 1024)).toFixed(1);
+      return next(new ApiError(413, `Image is too large (maximum ${mb} MB)`));
+    }
+    return next(new ApiError(400, "Could not read the uploaded image"));
+  }
+
+  return next(error);
+}
+
+module.exports = {
+  createAvatarUpload,
+  createDeliverableUpload,
+  handleAvatarUploadError,
+  handleUploadError,
+};

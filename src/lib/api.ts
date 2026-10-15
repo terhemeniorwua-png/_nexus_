@@ -27,6 +27,9 @@ export const AUTH_ENDPOINTS = {
   me: "/auth/me",
   // Same path as `me` with a different verb: only the fields that are sent change.
   updateProfile: "/auth/me",
+  // Profile picture upload: multipart body, so this is a separate route from
+  // `updateProfile` (which only ever carries JSON).
+  uploadAvatar: "/auth/me/avatar",
   changePassword: "/auth/change-password",
 } as const;
 

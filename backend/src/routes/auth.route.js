@@ -7,9 +7,11 @@ const {
   me,
   updateProfile,
   changePassword,
+  uploadAvatar,
 } = require("../controllers/auth.controller");
 const { authenticate } = require("../middleware/authenticate");
 const { authRateLimit, authRequestLimit } = require("../middleware/rateLimit");
+const { createAvatarUpload, handleAvatarUploadError } = require("../middleware/upload");
 
 const router = express.Router();
 
@@ -30,6 +32,16 @@ router.get("/me", authenticate, me);
 // Phase 23 — self-service account settings. PATCH rather than PUT because only
 // the fields that were sent change.
 router.patch("/me", authenticate, updateProfile);
+// Profile picture upload: multipart/form-data with a single `avatar` image.
+// The limiter caps how often the (comparatively expensive) image write runs.
+router.post(
+  "/me/avatar",
+  authenticate,
+  authRateLimit,
+  createAvatarUpload("avatar"),
+  handleAvatarUploadError,
+  uploadAvatar
+);
 router.post("/change-password", authenticate, authRateLimit, changePassword);
 
 module.exports = router;

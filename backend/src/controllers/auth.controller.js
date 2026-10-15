@@ -7,6 +7,7 @@ const { validateRegisterInput, validateLoginInput } = require("../validators/aut
 const { COOKIE_NAME } = require("../middleware/authenticate");
 const { sendEmail } = require("../services/email.service");
 const { welcomeEmail } = require("../emails/templates");
+const { saveAvatar, removeStoredFile } = require("../services/storage.service");
 
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
@@ -348,6 +349,68 @@ async function changePassword(req, res, next) {
   }
 }
 
+/**
+ * Absolute base URL for a stored avatar. Prefers an explicit PUBLIC_BASE_URL
+ * (set it when the app is behind a proxy that terminates TLS), and otherwise
+ * reconstructs it from the request, honouring X-Forwarded-Proto so an image URL
+ * is never emitted as http:// on an https site — which the browser would then
+ * refuse to load as mixed content.
+ */
+function publicBaseUrl(req) {
+  const configured = String(process.env.PUBLIC_BASE_URL || "").trim().replace(/\/+$/, "");
+  if (configured) return configured;
+
+  const proto = String(req.get("x-forwarded-proto") || req.protocol || "http")
+    .split(",")[0]
+    .trim();
+  return `${proto}://${req.get("host")}`;
+}
+
+/**
+ * Phase 23 — set the profile picture by uploading an image.
+ *
+ * Separate from `updateProfile`, which only accepts a URL: a file upload is a
+ * different content type and needs its own validator, so keeping it on its own
+ * route means a malformed multipart body can never reach the JSON profile path.
+ */
+async function uploadAvatar(req, res, next) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "An image file is required" });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+
+    const previous = user.avatar;
+    const saved = await saveAvatar(user._id, req.file);
+
+    user.avatar = `${publicBaseUrl(req)}${saved.publicPath}`;
+    await user.save();
+
+    // Best-effort removal of the file this upload replaced. Only our own
+    // storage path is touched; an external URL is left alone.
+    if (previous) {
+      const marker = "/uploads/";
+      const at = String(previous).indexOf(marker);
+      if (at !== -1) {
+        removeStoredFile(String(previous).slice(at + marker.length)).catch(() => {});
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: "Profile photo updated",
+      user: user.toJSON(),
+      capabilities: await sessionCapabilities(user._id),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   register,
   login,
@@ -356,4 +419,5 @@ module.exports = {
   me,
   updateProfile,
   changePassword,
+  uploadAvatar,
 };

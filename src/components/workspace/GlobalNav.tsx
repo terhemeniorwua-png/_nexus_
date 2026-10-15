@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -76,6 +76,27 @@ export default function GlobalNav() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const router = useRouter();
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  // Outside-click / Escape dismissal. A fixed click-away overlay is not an
+  // option here: the header's backdrop-blur makes it the containing block for
+  // fixed descendants, so the overlay would be confined to the header instead
+  // of covering the page.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
 
   // Phase 21: the session endpoint reports whether this user manages a project,
   // so the Manager link costs no extra request and cannot drift from the
@@ -107,7 +128,7 @@ export default function GlobalNav() {
 
         <div className="flex flex-1 items-center justify-end gap-2.5">
           <ThemeToggle />
-          <div className="relative">
+          <div className="relative" ref={menuRef}>
             <button
               type="button"
               onClick={() => setMenuOpen((v) => !v)}
@@ -115,7 +136,7 @@ export default function GlobalNav() {
               aria-expanded={menuOpen}
               className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 p-1.5 pl-2 transition-colors hover:border-white/20"
             >
-              <Avatar name={user?.name} size={26} />
+              <Avatar name={user?.name} avatar={user?.avatar} size={26} />
               <span className="hidden max-w-[140px] truncate text-[13px] font-medium text-zinc-200 sm:block">
                 {user?.name?.split(" ")[0]}
               </span>
@@ -123,8 +144,7 @@ export default function GlobalNav() {
 
             {menuOpen && (
               <>
-                <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-                <div className="ws-glass absolute right-0 z-20 mt-2 w-60 rounded-xl p-1.5">
+                <div className="ws-menu absolute right-0 z-20 mt-2 w-60 rounded-xl p-1.5">
                   <div className="border-b border-white/10 px-3 py-2.5">
                     <p className="truncate text-[13.5px] font-semibold text-white">{user?.name}</p>
                     <p className="truncate font-mono text-[11.5px] text-zinc-500">{user?.email}</p>

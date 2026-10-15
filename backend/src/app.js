@@ -24,6 +24,7 @@ const knowledgeRoutes = require("./routes/knowledge.route");
 const taskRoutes = require("./routes/task.route");
 const { notFoundHandler, errorHandler } = require("./middleware/errorHandler");
 const { securityHeaders } = require("./middleware/securityHeaders");
+const { getAvatarsDir } = require("./services/storage.service");
 require("dotenv").config()
 
 const {
@@ -64,6 +65,19 @@ app.use(
 );
 app.use(express.json());
 app.use(cookieParser());
+
+// Profile pictures are public: an <img> tag carries no cookies, so they are
+// served directly from disk. Scoped to the avatars directory only — deliverable
+// files remain behind their authorised streaming endpoint and are never exposed
+// here. `index: false` also stops the folder itself from listing its contents.
+app.use(
+  "/uploads/avatars",
+  express.static(getAvatarsDir(), {
+    index: false,
+    dotfiles: "ignore",
+    maxAge: "7d",
+  })
+);
 
 app.get("/api/health", (_req, res) => {
   res.json({ success: true, message: "Nexus API is healthy", uptime: process.uptime() });

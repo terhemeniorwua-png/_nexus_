@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import type { FormEvent, ReactNode } from "react";
+import { useRef, useState } from "react";
+import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useMutation } from "@/hooks/useResource";
 import { AUTH_ENDPOINTS } from "@/lib/api";
@@ -52,6 +52,12 @@ function Notice({ tone, children }: { tone?: string; children?: ReactNode }) {
 const inputClass =
   "ws-input h-10 w-full rounded-lg px-3 text-[13.5px] text-zinc-100 disabled:opacity-60";
 
+// Mirrors the server's avatar rules (services/storage.service.js) so an
+// oversized or non-image file is rejected in the picker rather than after a
+// round trip. The server validates the same way again — this is only for speed.
+const AVATAR_ACCEPT = "image/png,image/jpeg,image/webp,image/gif";
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth();
   const { run, loading } = useMutation();
@@ -59,6 +65,11 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState({ name: user?.name || "", avatar: user?.avatar || "" });
   const [profileError, setProfileError] = useState("");
   const [profileSaved, setProfileSaved] = useState(false);
+
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
+  const [avatarNotice, setAvatarNotice] = useState("");
 
   const [passwords, setPasswords] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [passwordError, setPasswordError] = useState("");
@@ -95,6 +106,66 @@ export default function SettingsPage() {
       avatar: result.data?.user?.avatar ?? prev.avatar,
     }));
     setProfileSaved(true);
+  }
+
+  async function uploadAvatarFile(file: File) {
+    setAvatarError("");
+    setAvatarNotice("");
+
+    if (!file.type.startsWith("image/")) {
+      setAvatarError("Choose an image file.");
+      return;
+    }
+    if (file.size > AVATAR_MAX_BYTES) {
+      setAvatarError("Images must be 2 MB or smaller.");
+      return;
+    }
+
+    const body = new FormData();
+    body.append("avatar", file);
+
+    setAvatarBusy(true);
+    const result = await run(AUTH_ENDPOINTS.uploadAvatar, { method: "POST", body });
+    setAvatarBusy(false);
+
+    if (result.error) {
+      setAvatarError(result.error.message);
+      return;
+    }
+
+    // The new URL is read back from the session rather than echoed here, so
+    // every header and menu picks up the change in the same pass.
+    await refreshUser();
+    setProfileField({ avatar: result.data?.user?.avatar ?? "" });
+    setAvatarNotice(result.data?.message || "Photo updated.");
+  }
+
+  function onAvatarSelected(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    // Cleared before awaiting so re-picking the same file still fires a change.
+    event.target.value = "";
+    if (file) void uploadAvatarFile(file);
+  }
+
+  async function removeAvatar() {
+    setAvatarError("");
+    setAvatarNotice("");
+
+    setAvatarBusy(true);
+    const result = await run(AUTH_ENDPOINTS.updateProfile, {
+      method: "PATCH",
+      body: { avatar: "" },
+    });
+    setAvatarBusy(false);
+
+    if (result.error) {
+      setAvatarError(result.error.message);
+      return;
+    }
+
+    await refreshUser();
+    setProfileField({ avatar: "" });
+    setAvatarNotice("Photo removed.");
   }
 
   async function changePassword(event: FormEvent<HTMLFormElement>) {
@@ -140,9 +211,9 @@ export default function SettingsPage() {
 
           <section className="mt-8">
             <div className="ws-card rounded-2xl p-6">
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-4">
                 <Avatar name={user?.name} avatar={user?.avatar} size={48} />
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="truncate text-[15px] font-semibold text-white">
                     {user?.name || "—"}
                   </p>
@@ -150,7 +221,45 @@ export default function SettingsPage() {
                     {user?.email || "—"}
                   </p>
                 </div>
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept={AVATAR_ACCEPT}
+                    onChange={onAvatarSelected}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => avatarInputRef.current?.click()}
+                    disabled={avatarBusy}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[12.5px] font-medium text-zinc-200 transition-colors hover:border-white/20 disabled:opacity-50"
+                  >
+                    {avatarBusy ? "Uploading…" : "Upload photo"}
+                  </button>
+                  {user?.avatar ? (
+                    <button
+                      type="button"
+                      onClick={removeAvatar}
+                      disabled={avatarBusy}
+                      className="text-[11.5px] text-zinc-500 transition-colors hover:text-zinc-300 disabled:opacity-50"
+                    >
+                      Remove photo
+                    </button>
+                  ) : null}
+                </div>
               </div>
+
+              {avatarError ? (
+                <div className="mt-4">
+                  <Notice tone="error">{avatarError}</Notice>
+                </div>
+              ) : null}
+              {avatarNotice && !avatarError ? (
+                <div className="mt-4">
+                  <Notice tone="success">{avatarNotice}</Notice>
+                </div>
+              ) : null}
 
               <form onSubmit={saveProfile} className="mt-6 space-y-4">
                 <Field label="Full name" htmlFor="settings-name">
@@ -167,7 +276,7 @@ export default function SettingsPage() {
                 <Field
                   label="Avatar URL"
                   htmlFor="settings-avatar"
-                  hint="Optional. An http(s) image address. Leave empty to use your initials."
+                  hint="Optional. Paste an http(s) image address instead of uploading. Leave empty to use your initials."
                 >
                   <input
                     id="settings-avatar"

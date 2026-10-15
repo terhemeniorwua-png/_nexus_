@@ -42,6 +42,10 @@
   --glass-bg: rgba(255, 255, 255, 0.045);
   --glass-border: rgba(255, 255, 255, 0.1);
   --glass-inset: rgba(255, 255, 255, 0.08);
+  /* Dropdown menus sit inside the blurred header, where a nested
+     backdrop-filter cannot blur the page behind them — so they are painted
+     nearly opaque instead, to clearly cover the content they overlap. */
+  --menu-bg: rgba(18, 18, 23, 0.98);
   --card-bg: rgba(255, 255, 255, 0.028);
   --card-border: rgba(255, 255, 255, 0.08);
   --card-hover-bg: rgba(255, 255, 255, 0.045);
@@ -81,6 +85,7 @@ html.light {
   --glass-bg: rgba(255, 255, 255, 0.72);
   --glass-border: rgba(24, 24, 27, 0.09);
   --glass-inset: rgba(255, 255, 255, 0.7);
+  --menu-bg: rgba(255, 255, 255, 0.99);
   --card-bg: rgba(255, 255, 255, 0.8);
   --card-border: rgba(24, 24, 27, 0.08);
   --card-hover-bg: rgba(255, 255, 255, 0.95);
