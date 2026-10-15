@@ -1,0 +1,447 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ProtectedRoute } from "@/components/auth/RouteGuards";
+import { useAuth } from "@/context/AuthContext";
+import { useResource } from "@/hooks/useResource";
+import "../workspace.css";
+import { PlusIcon, GridIcon, BoardIcon, ClockIcon, ListTasksIcon, BellIcon } from "@/components/workspace/icons";
+import EmptyState from "@/components/workspace/EmptyState";
+import ActivityFeed from "@/components/workspace/ActivityFeed";
+import ProgressBar from "@/components/workspace/ProgressBar";
+import TaskItem from "@/components/workspace/TaskItem";
+import type { TaskItemTask } from "@/components/workspace/TaskItem";
+import WorkspaceForm from "@/components/workspace/WorkspaceForm";
+import GlobalNav from "@/components/workspace/GlobalNav";
+import StatCards from "@/components/workspace/Dashboard/StatCards";
+import MyTasks from "@/components/workspace/Dashboard/MyTasks";
+import RecentlyViewed from "@/components/workspace/Dashboard/RecentlyViewed";
+import NotificationsPanel from "@/components/workspace/Dashboard/NotificationsPanel";
+
+interface DashboardProjectStats {
+  taskCount?: number;
+  doneCount?: number;
+  inProgressCount?: number;
+  underReviewCount?: number;
+}
+
+interface DashboardProject {
+  id: string;
+  name?: string;
+  status?: string;
+  progress?: number;
+  workspaceName?: string;
+  stats?: DashboardProjectStats;
+}
+
+interface DashboardWorkspaceStats {
+  memberCount?: number;
+  taskCount?: number;
+}
+
+interface DashboardWorkspace {
+  id: string;
+  name: string;
+  description?: string;
+  role?: string;
+  stats?: DashboardWorkspaceStats;
+}
+
+function greeting() {
+  const hour = new Date().getHours();
+  if (hour < 5) return "Burning the midnight oil";
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+export default function DashboardPage() {
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const { data, loading } = useResource("/me/overview");
+  // Phase 20: the personalised figures (projects / my tasks / progress /
+  // recently viewed) come from their own endpoint so a failure there degrades
+  // one section instead of blanking the whole page.
+  const {
+    data: dashData,
+    loading: dashLoading,
+    error: dashError,
+    refetch: refetchDashboard,
+  } = useResource("/me/dashboard");
+  const [showCreate, setShowCreate] = useState(false);
+
+  const overview = data?.overview;
+  const dashboard = dashData?.dashboard;
+  const dueSoon: TaskItemTask[] = overview?.dueSoonTasks || [];
+  const overdue: TaskItemTask[] = overview?.overdueTasks || [];
+  const tasks = overview?.inProgressTasks || [];
+  const workspaces = useMemo<DashboardWorkspace[]>(() => overview?.workspaces || [], [overview]);
+  const projects = useMemo<DashboardProject[]>(() => overview?.projects || [], [overview]);
+  const activity = overview?.recentActivity || [];
+
+  // The name comes from the authenticated session, never a constant. While the
+  // session is still resolving `user` is null, so the greeting waits rather
+  // than briefly showing someone else's name or a wrong fallback.
+  const firstName = user?.name?.trim()?.split(/\s+/)[0] || "";
+  const greetingName = firstName || "there";
+  const showGreeting = !authLoading && Boolean(user);
+
+  // The stat row is loading until the dashboard request settles, so the cards
+  // never render a placeholder 0 that would contradict the real figures a
+  // moment later.
+  const cardsPending = dashLoading || (!dashboard && !dashError);
+  const projectProgress = useMemo(
+    () => ({
+      active: projects.filter((p) => p.status !== "COMPLETED" && p.status !== "ARCHIVED").length,
+      tracked: projects.filter((p) => (p.stats?.taskCount || 0) > 0).length,
+      average: projects.length
+        ? Math.round(
+            projects.reduce((sum, p) => sum + (p.progress || 0), 0) / projects.length
+          )
+        : 0,
+    }),
+    [projects]
+  );
+
+  async function handleCreateWorkspace(
+    form: { name: string; description: string },
+    runFn: any
+  ) {
+    const { data: created, error } = await runFn("/workspaces", {
+      method: "POST",
+      body: { name: form.name, description: form.description },
+    });
+    if (error) throw error;
+    setShowCreate(false);
+    router.push(`/workspaces/${created.workspace.id}`);
+  }
+
+  return (
+    <ProtectedRoute>
+      <div className="ws-canvas relative min-h-dvh text-zinc-200">
+        <div className="ws-glow left-[-10%] top-[-15%] h-[380px] w-[380px] bg-blue-600/20" />
+        <div className="ws-glow right-[-8%] top-[28%] h-[340px] w-[340px] bg-purple-600/15" />
+
+        <div className="relative z-10 min-h-dvh">
+          <GlobalNav />
+
+          <main className="mx-auto w-full max-w-6xl px-5 py-10 md:px-8">
+            <header className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-[13px] font-medium text-zinc-500">
+                {new Date().toLocaleDateString(undefined, {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </p>
+              <h1 className="mt-1 text-[26px] font-semibold tracking-tight text-white">
+                {greeting()}
+                {showGreeting ? `, ${greetingName}.` : "."}
+              </h1>
+              <p className="mt-1 text-[14px] text-zinc-400">
+                Here&apos;s what&apos;s happening across your workspaces.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[13.5px] font-semibold text-zinc-950 transition-colors hover:bg-zinc-200"
+            >
+              <PlusIcon size={16} /> New workspace
+            </button>
+          </header>
+
+          {/* ----------------------------------------------------------
+              Phase 20 — personalised overview.
+
+              Deliberately outside the `/me/overview` loading branch below:
+              these panels come from `/me/dashboard`, so a slow or failing
+              overview request must not hide them, and vice versa.
+              ---------------------------------------------------------- */}
+          {dashError ? (
+            <div
+              className="mt-8 flex flex-col items-center rounded-2xl border border-red-500/25 bg-red-500/[0.06] px-6 py-8 text-center"
+              role="alert"
+            >
+              <p className="text-[14px] font-semibold text-red-200">
+                We couldn&apos;t load your dashboard
+              </p>
+              <p className="mt-1.5 max-w-sm text-[12.5px] text-red-200/70">
+                {dashError?.message || "Something went wrong fetching your data."}
+              </p>
+              <button
+                type="button"
+                onClick={refetchDashboard}
+                className="mt-4 rounded-lg bg-white px-3.5 py-2 text-[13px] font-semibold text-zinc-950 transition-colors hover:bg-zinc-200"
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <>
+              <section className="mt-8">
+                <StatCards stats={dashboard?.stats} loading={cardsPending} />
+              </section>
+
+              <div className="mt-8 grid gap-6 lg:grid-cols-3">
+                <div className="space-y-6 lg:col-span-2">
+                  <section>
+                    <div className="mb-3 flex items-center justify-between">
+                      <h2 className="flex items-center gap-2 text-[14px] font-semibold text-white">
+                        <ListTasksIcon size={15} /> My tasks
+                      </h2>
+                      <Link
+                        href="/tasks"
+                        className="text-[12px] text-zinc-500 transition-colors hover:text-white"
+                      >
+                        View all
+                      </Link>
+                    </div>
+                    <MyTasks tasks={dashboard?.myTasks} loading={cardsPending} />
+                  </section>
+
+                  <section>
+                    <div className="mb-3 flex items-center justify-between">
+                      <h2 className="flex items-center gap-2 text-[14px] font-semibold text-white">
+                        <ClockIcon size={15} /> Recently viewed
+                      </h2>
+                      <Link
+                        href="/projects"
+                        className="text-[12px] text-zinc-500 transition-colors hover:text-white"
+                      >
+                        All projects
+                      </Link>
+                    </div>
+                    <RecentlyViewed
+                      projects={dashboard?.recentlyViewed}
+                      loading={cardsPending}
+                    />
+                  </section>
+                </div>
+
+                <section>
+                  <div className="mb-3 flex items-center justify-between">
+                    <h2 className="flex items-center gap-2 text-[14px] font-semibold text-white">
+                      <BellIcon size={15} /> Notifications
+                    </h2>
+                  </div>
+                  <NotificationsPanel />
+                </section>
+              </div>
+            </>
+          )}
+
+          {loading && !overview ? (
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-28 animate-pulse rounded-2xl border border-white/6 bg-white/[0.03]" />
+              ))}
+            </div>
+          ) : (
+            <>
+              <section className="mt-8">
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-[14px] font-semibold text-white">Project progress</h2>
+                  <div className="flex items-center gap-3 text-[12px] text-zinc-500">
+                    <span>
+                      {projectProgress.active} active · {projectProgress.tracked} with tasks
+                    </span>
+                    <Link href="/projects" className="transition-colors hover:text-white">
+                      View all
+                    </Link>
+                  </div>
+                </div>
+
+                {projects.length === 0 ? (
+                  <div className="ws-card rounded-2xl">
+                    <EmptyState
+                      icon={<BoardIcon size={18} />}
+                      title="No projects yet"
+                      description="Create a project to start tracking weighted progress."
+                      className="py-8"
+                      action={
+                        <Link
+                          href="/projects/new"
+                          className="rounded-lg bg-white px-3.5 py-2 text-[13px] font-semibold text-zinc-950 transition-colors hover:bg-zinc-200"
+                        >
+                          New project
+                        </Link>
+                      }
+                    />
+                  </div>
+                ) : (
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {projects.map((project) => {
+                      const projectStats = project.stats || {};
+                      const hasTasks = (projectStats.taskCount || 0) > 0;
+                      return (
+                        <Link
+                          key={project.id}
+                          href={`/projects/${project.id}`}
+                          className="ws-card group flex flex-col rounded-2xl p-4"
+                        >
+                          <p className="truncate text-[13.5px] font-semibold text-white">
+                            {project.name}
+                          </p>
+                          <p className="mt-0.5 truncate text-[11.5px] text-zinc-600">
+                            {project.workspaceName}
+                          </p>
+
+                          <div className="mt-3">
+                            <ProgressBar
+                              value={project.progress}
+                              label={hasTasks ? "Progress" : "No tasks yet"}
+                              size="sm"
+                              tone="purple"
+                              showValue={hasTasks}
+                              hint="Calculated from your tasks' completed work"
+                            />
+                          </div>
+
+                          <p className="mt-3 text-[11.5px] text-zinc-500">
+                            {projectStats.taskCount || 0} tasks · {projectStats.doneCount || 0} done ·{" "}
+                            {projectStats.inProgressCount || 0} in progress ·{" "}
+                            {projectStats.underReviewCount || 0} under review
+                          </p>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+
+              <div className="mt-8 grid gap-6 lg:grid-cols-2">
+                <section className="space-y-5">
+                  <div>
+                    <div className="mb-3 flex items-center justify-between">
+                      <h2 className="flex items-center gap-2 text-[14px] font-semibold text-white">
+                        <span className="h-2 w-2 rounded-full bg-red-400" /> Overdue
+                      </h2>
+                      <span className="text-[12px] text-zinc-500">{overdue.length}</span>
+                    </div>
+                    <div className="space-y-2.5">
+                      {overdue.length === 0 ? (
+                        <EmptyState
+                          icon={<ClockIcon size={18} />}
+                          title="Nothing overdue"
+                          description="You're all caught up. Nice."
+                          className="py-8"
+                        />
+                      ) : (
+                        overdue.map((task) => <TaskItem key={task.id} task={task} />)
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="mb-3 flex items-center justify-between">
+                      <h2 className="flex items-center gap-2 text-[14px] font-semibold text-white">
+                        <span className="h-2 w-2 rounded-full bg-amber-400" /> Due soon
+                      </h2>
+                      <span className="text-[12px] text-zinc-500">{dueSoon.length}</span>
+                    </div>
+                    <div className="space-y-2.5">
+                      {dueSoon.length === 0 ? (
+                        <EmptyState
+                          icon={<ClockIcon size={18} />}
+                          title="All clear this week"
+                          description="No tasks with upcoming due dates."
+                          className="py-8"
+                        />
+                      ) : (
+                        dueSoon.map((task) => <TaskItem key={task.id} task={task} />)
+                      )}
+                    </div>
+                  </div>
+                </section>
+
+                <section className="space-y-5">
+                  <div>
+                    <div className="mb-3 flex items-center justify-between">
+                      <h2 className="flex items-center gap-2 text-[14px] font-semibold text-white">
+                        <GridIcon size={15} /> Your workspaces
+                      </h2>
+                      <Link href="/workspaces" className="text-[12px] text-zinc-500 transition-colors hover:text-white">
+                        View all
+                      </Link>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {workspaces.length === 0 ? (
+                        <div className="sm:col-span-2">
+                          <EmptyState
+                            icon={<GridIcon size={18} />}
+                            title="No workspaces yet"
+                            description="Create a workspace to start planning with your team."
+                            action={
+                              <button
+                                type="button"
+                                onClick={() => setShowCreate(true)}
+                                className="rounded-lg bg-white px-3.5 py-2 text-[13px] font-semibold text-zinc-950 transition-colors hover:bg-zinc-200"
+                              >
+                                Create workspace
+                              </button>
+                            }
+                          />
+                        </div>
+                      ) : (
+                        workspaces.map((workspace) => (
+                          <Link
+                            key={workspace.id}
+                            href={`/workspaces/${workspace.id}`}
+                            className="ws-card group rounded-2xl p-4"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-gradient-to-br from-blue-600/35 to-purple-600/35 text-[13px] font-bold text-white">
+                                {workspace.name.slice(0, 1).toUpperCase()}
+                              </span>
+                              <span className="rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10.5px] text-zinc-400">
+                                {workspace.role}
+                              </span>
+                            </div>
+                            <p className="mt-3 truncate text-[14px] font-semibold text-white">
+                              {workspace.name}
+                            </p>
+                            {workspace.description && (
+                              <p className="mt-0.5 line-clamp-2 text-[12.5px] leading-relaxed text-zinc-500">
+                                {workspace.description}
+                              </p>
+                            )}
+                            <p className="mt-3 text-[11.5px] text-zinc-600">
+                              {workspace.stats?.memberCount || 0} members ·{" "}
+                              {workspace.stats?.taskCount || 0} tasks
+                            </p>
+                          </Link>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="mb-3 flex items-center justify-between">
+                      <h2 className="text-[14px] font-semibold text-white">Recent activity</h2>
+                    </div>
+                    <div className="ws-card rounded-2xl p-3">
+                      <ActivityFeed activities={activity} workspaceId={undefined} limit={10} />
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </>
+          )}
+
+          <WorkspaceForm
+            open={showCreate}
+            onClose={() => setShowCreate(false)}
+            title="New workspace"
+            submitLabel="Create workspace"
+            onSubmit={handleCreateWorkspace}
+          />
+          </main>
+        </div>
+      </div>
+    </ProtectedRoute>
+  );
+}

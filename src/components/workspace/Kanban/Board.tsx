@@ -1,0 +1,280 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCorners,
+} from "@dnd-kit/core";
+import type { DragEndEvent, DragOverEvent, DragStartEvent } from "@dnd-kit/core";
+import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import { useResource, useMutation } from "@/hooks/useResource";
+import { useProjectRefresh, useProjectRoom } from "@/hooks/useSocket";
+import type { ID, Member } from "@/lib/types";
+import Column from "./Column";
+import type { KanbanColumn } from "./Column";
+import TaskCard from "./TaskCard";
+import type { KanbanTask } from "./TaskCard";
+import TaskModal from "./TaskModal";
+
+interface RawBoard {
+  columns?: Array<{ id: ID; name: string; position?: number }>;
+  tasks?: KanbanTask[];
+}
+
+interface ModalState {
+  type: "create" | "edit";
+  columnId?: string;
+  status?: string;
+  task?: KanbanTask;
+}
+
+export interface BoardProps {
+  workspaceId: ID;
+  projectId: ID;
+  members?: Member[];
+  role?: string;
+}
+
+function makeColumns(board: RawBoard | null): KanbanColumn[] {
+  if (!board) return [];
+  const columns = board.columns || [];
+  const tasks = board.tasks || [];
+  return columns.map((col) => ({
+    id: String(col.id),
+    name: col.name,
+    position: col.position,
+    tasks: tasks.filter((t) => String(t.columnId) === String(col.id)),
+  }));
+}
+
+function findColumnFromId(columns: KanbanColumn[], id: string): KanbanColumn | undefined {
+  return columns.find(
+    (col) => col.id === id || col.tasks.some((t) => String(t.id) === String(id))
+  );
+}
+
+function moveAcross(
+  columns: KanbanColumn[],
+  activeId: string,
+  overId: string,
+  isOverTask: boolean
+): KanbanColumn[] {
+  const fromColumn = findColumnFromId(columns, activeId);
+  const toColumn = isOverTask
+    ? findColumnFromId(columns, overId)
+    : columns.find((col) => col.id === overId);
+
+  if (!fromColumn || !toColumn || fromColumn.id === toColumn.id) return columns;
+
+  const activeTask = fromColumn.tasks.find((t) => String(t.id) === String(activeId));
+  if (!activeTask) return columns;
+
+  const sourceTasks = fromColumn.tasks.filter((t) => String(t.id) !== String(activeId));
+  const targetTasks = toColumn.tasks.filter((t) => String(t.id) !== String(activeId));
+
+  let insertAt = targetTasks.length;
+  if (isOverTask) {
+    const overIndex = targetTasks.findIndex((t) => String(t.id) === String(overId));
+    insertAt = overIndex === -1 ? targetTasks.length : overIndex + 1;
+  }
+  targetTasks.splice(Math.min(insertAt, targetTasks.length), 0, activeTask);
+
+  return columns.map((col) => {
+    if (col.id === fromColumn.id) return { ...col, tasks: sourceTasks };
+    if (col.id === toColumn.id) return { ...col, tasks: targetTasks };
+    return col;
+  });
+}
+
+export default function Board({ workspaceId, projectId, members, role = "" }: BoardProps) {
+  const canManage = ["WORKSPACE_OWNER", "ADMIN", "PROJECT_MANAGER"].includes(role);
+  const canEdit = canManage || role === "MEMBER" || role === "COLLABORATOR";
+
+  const { data: boardData, loading, refetch } = useResource(
+    `/workspaces/${workspaceId}/projects/${projectId}/board`
+  );
+
+  const [columns, setColumns] = useState<KanbanColumn[]>([]);
+  const [activeTask, setActiveTask] = useState<KanbanTask | null>(null);
+  const [modal, setModal] = useState<ModalState | null>(null);
+  const [membersData, setMembersData] = useState<Member[]>(members || []);
+
+  const { run } = useMutation();
+  const columnsRef = useRef<KanbanColumn[]>(columns);
+
+  // Keep the assignee list in sync when the members prop resolves asynchronously.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (Array.isArray(members) && members.length > 0) {
+      setMembersData(members);
+    }
+  }, [members]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  useEffect(() => {
+    columnsRef.current = columns;
+  }, [columns]);
+
+  // Sync columns state from the fetched board payload.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (boardData) setColumns(makeColumns(boardData));
+  }, [boardData]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Phase 18 — real-time. The backend authorizes the project room and the
+  // events are only a signal: the board re-reads itself from the REST API so
+  // what is rendered is always the database's answer, never an optimistic
+  // guess carried by a socket frame.
+  useProjectRoom(projectId, workspaceId);
+  useProjectRefresh(refetch);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  function handleDragStart(event: DragStartEvent) {
+    // Viewers are read-only: no drag, no overlay.
+    if (!canEdit) return;
+    const task = columnsRef.current
+      .flatMap((col) => col.tasks)
+      .find((t) => String(t.id) === String(event.active.id));
+    if (task) setActiveTask(task);
+  }
+
+  function handleDragOver(event: DragOverEvent) {
+    if (!canEdit) return;
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    const overData: any = over.data?.current || {};
+    const isOverTask = overData.type === "Task";
+    const isOverColumn = overData.type === "Column";
+
+    if (isOverTask) {
+      setColumns((prev) => {
+        const fromColumn = findColumnFromId(prev, activeId);
+        const toColumn = findColumnFromId(prev, overId);
+        if (!fromColumn || !toColumn) return prev;
+
+        if (fromColumn.id === toColumn.id) {
+          const activeIndex = fromColumn.tasks.findIndex((t) => String(t.id) === activeId);
+          const overIndex = fromColumn.tasks.findIndex((t) => String(t.id) === overId);
+          if (activeIndex === -1 || overIndex === -1) return prev;
+          return prev.map((col) =>
+            col.id === fromColumn.id
+              ? { ...col, tasks: arrayMove(col.tasks, activeIndex, overIndex) }
+              : col
+          );
+        }
+
+        return moveAcross(prev, activeId, overId, true);
+      });
+    } else if (isOverColumn) {
+      setColumns((prev) => moveAcross(prev, activeId, overId, false));
+    }
+  }
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const activeId = String(event.active.id);
+
+    const column = columnsRef.current.find((col) =>
+      col.tasks.some((t) => String(t.id) === activeId)
+    );
+
+    setActiveTask(null);
+
+    if (!column) return;
+
+    const position = column.tasks.findIndex((t) => String(t.id) === activeId);
+    if (position === -1) {
+      refetch();
+      return;
+    }
+
+    const { error } = await run(
+      `/workspaces/${workspaceId}/projects/${projectId}/tasks/${activeId}/move`,
+      { method: "POST", body: { columnId: column.id, position } }
+    );
+
+    if (error) {
+      refetch();
+    }
+  }
+
+  if (loading && columns.length === 0) {
+    return (
+      <div className="flex gap-4 overflow-x-auto pb-4 ws-scroll">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-[320px] w-[280px] shrink-0 animate-pulse rounded-xl border border-white/5 bg-white/[0.03]" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+        onDragCancel={() => setActiveTask(null)}
+      >
+        <div className="flex min-h-[60vh] gap-4 overflow-x-auto pb-4 ws-scroll">
+          {columns.map((column) => (
+            <Column
+              key={column.id}
+              column={column}
+              canManage={canManage}
+              onAddTask={(columnId) => {
+                const col = columns.find((c) => c.id === columnId);
+                setModal({ type: "create", columnId, status: col?.name });
+              }}
+              onOpenTask={(task) => {
+                if (!task) {
+                    console.error("Cannot open task modal: task is null");
+                  return;
+                  }
+
+                    setModal({ type: "edit", task });
+                }}
+            />
+          ))}
+        </div>
+
+        <DragOverlay>
+          {activeTask ? (
+            <div className="w-[260px] rotate-1 cursor-grabbing">
+              <TaskCard task={activeTask} />
+            </div>
+          ) : null}
+        </DragOverlay>
+            </DndContext>
+
+      <TaskModal
+        open={Boolean(modal)}
+        onClose={() => setModal(null)}
+        workspaceId={workspaceId}
+        projectId={projectId}
+        members={membersData}
+        role={role}
+        columns={columns.map((col) => ({ id: col.id, name: col.name }))}
+        task={modal?.type === "edit" ? modal.task : null}
+        defaultColumnId={modal?.columnId}
+        defaultStatus={modal?.status}
+        onSaved={() => refetch()}
+        onDeleted={() => refetch()}
+      />
+    </div>
+  );
+}
