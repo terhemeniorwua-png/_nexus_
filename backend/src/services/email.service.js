@@ -54,6 +54,10 @@ function normalizeRecipients(to) {
  * @returns {Promise<boolean>} true when Brevo accepted the send.
  */
 async function sendEmail({ to, subject, html, text, replyTo, tags } = {}) {
+  // Never hit the provider from the test suite: the tests register users and
+  // invite members on purpose, and those flows would otherwise send real mail.
+  if (process.env.NODE_ENV === "test") return false;
+
   if (!isConfigured()) {
     console.warn(
       "[nexus] Email skipped — set BREVO_API_KEY and MAIL_FROM_EMAIL to enable sending."

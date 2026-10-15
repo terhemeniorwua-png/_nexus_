@@ -126,6 +126,21 @@ async function inviteProjectMember(req, res, next) {
       entityId: req.project._id,
     });
 
+    // Best-effort invitation email; a provider failure is logged, not returned.
+    sendEmail({
+      to: { email: user.email, name: user.name },
+      tags: ["invitation", "project"],
+      ...projectInvitationEmail({
+        recipientName: user.name,
+        inviterName: req.user.name,
+        projectName: req.project.name,
+        workspaceName: req.workspace && req.workspace.name,
+        role: requestedRole,
+        projectId: req.project._id,
+        workspaceId: req.workspace && req.workspace._id,
+      }),
+    });
+
     res.status(201).json({ success: true, member: normalize(member, user) });
   } catch (error) {
     next(error);
