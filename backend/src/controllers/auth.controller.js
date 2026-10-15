@@ -5,6 +5,8 @@ const {
 } = require("../services/project.service");
 const { validateRegisterInput, validateLoginInput } = require("../validators/auth.validator");
 const { COOKIE_NAME } = require("../middleware/authenticate");
+const { sendEmail } = require("../services/email.service");
+const { welcomeEmail } = require("../emails/templates");
 
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
@@ -86,6 +88,15 @@ async function register(req, res, next) {
 
     const token = signToken(user._id);
     setAuthCookie(res, token);
+
+    // Welcome email is best-effort and fire-and-forget: the account is already
+    // created, so a mail-provider failure must not turn a 201 into an error.
+    // `sendEmail` logs and resolves to false rather than rejecting.
+    sendEmail({
+      to: { email: user.email, name: user.name },
+      tags: ["welcome"],
+      ...welcomeEmail({ name: user.name }),
+    });
 
     return res.status(201).json({
       success: true,

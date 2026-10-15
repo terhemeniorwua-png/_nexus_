@@ -6,6 +6,8 @@ const ProjectMember = require("../models/projectMember.model");
 const { ApiError } = require("../middleware/errorHandler");
 const { recordActivity } = require("../services/activity.service");
 const { createNotification } = require("../services/notification.service");
+const { sendEmail } = require("../services/email.service");
+const { projectInvitationEmail } = require("../emails/templates");
 
 const ALLOWED_ROLES = ["PROJECT_MANAGER", "MEMBER", "VIEWER", "COLLABORATOR"];
 const GRANTABLE_ROLES = ["MEMBER", "VIEWER", "COLLABORATOR"];

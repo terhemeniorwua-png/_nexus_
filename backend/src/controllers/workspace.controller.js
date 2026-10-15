@@ -6,6 +6,8 @@ const Task = require("../models/task.model");
 const { ApiError } = require("../middleware/errorHandler");
 const { recordActivity } = require("../services/activity.service");
 const { createNotification } = require("../services/notification.service");
+const { sendEmail } = require("../services/email.service");
+const { workspaceInvitationEmail } = require("../emails/templates");
 
 // Phase 23 — `isOwner` is here so the members table can leave the owner's role
 // and remove controls out. The API refuses both anyway ("Workspace owners must
@@ -242,6 +244,20 @@ async function addMember(req, res, next) {
       title: `You were added to ${req.workspace.name}`,
       body: `${req.user.name} added you as ${requestedRole.toLowerCase()}.`,
       link: `/workspaces/${req.workspace._id}`,
+    });
+
+    // Best-effort invitation email. The member row is already written, so a
+    // failure here is logged by `sendEmail`, never surfaced to the caller.
+    sendEmail({
+      to: { email: user.email, name: user.name },
+      tags: ["invitation", "workspace"],
+      ...workspaceInvitationEmail({
+        recipientName: user.name,
+        inviterName: req.user.name,
+        workspaceName: req.workspace.name,
+        role: requestedRole,
+        workspaceId: req.workspace._id,
+      }),
     });
 
     res.status(201).json({ success: true, member: normalizeMember(member, user, req.workspace.ownerId) });
